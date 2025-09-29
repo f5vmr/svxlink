@@ -81,10 +81,10 @@ proc sourceTcl {path} {
   set script_dir [file dirname [info script]]
   set path [file join "$script_dir" "$path"]
   if [file readable $path] {
-    puts "$::logic_name: Loading $path"
+    #puts "$::logic_name: Loading $path"
     uplevel 1 source $path
   } else {
-    puts "*** WARNING: Could not load TCL event file: $path"
+    #puts "*** WARNING: Could not load TCL event file: $path"
   }
 }
 
@@ -235,14 +235,14 @@ proc playMsg {context msg {warn 1}} {
 #
 proc printNamespaceTree {{ns ::} {indent "  "}} {
   if {$ns == "::"} {
-    puts "### TCL namespace tree:"
+    #puts "### TCL namespace tree:"
   }
   foreach child [namespace children $ns] {
     if {$child == "::tcl" || $child == "::oo" || $child == "::zlib"} {
       continue
     }
     set ns [namespace tail $child]
-    puts "### ${indent}${ns}"
+    #puts "### ${indent}${ns}"
     printNamespaceTree $child "$indent  "
   }
 }
