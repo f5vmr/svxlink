@@ -441,7 +441,7 @@ class SquelchCtcss : public Squelch
     {
       if (m_debug)
       {
-        #printDebug();
+        printDebug();
       }
       std::ostringstream ss;
       ss << std::setprecision(1) << std::fixed << det->toneFq();
