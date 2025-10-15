@@ -344,6 +344,11 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
   "Advanced voice services system for ham radio use")
 string(REPLACE "-" "." CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 string(REGEX REPLACE "^[Vv]" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
+# If version does NOT start with a digit (e.g. "master", "main", "dev")
+# replace it with 25.5
+if(NOT CPACK_PACKAGE_VERSION MATCHES "^[0-9]")
+  set(CPACK_PACKAGE_VERSION "25.5")
+endif()
 message(STATUS "Package Version = ${CPACK_PACKAGE_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION
   "The SvxLink project develops an advanced voice services system for ham radio use. It can be run on a simplex frequency or act as a repeater controller.")
