@@ -33,7 +33,7 @@ set module_name [namespace tail [namespace current]]
 #
 proc printInfo {msg} {
   variable module_name
-  puts "$module_name: $msg"
+  #puts "$module_name: $msg"
 }
  
  

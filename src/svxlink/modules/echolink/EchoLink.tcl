@@ -340,7 +340,7 @@ proc listen_only {status activate} {
     playMsg "listen_only";
     playMsg [expr {$status ? "already_active" : "not_active"}];
   } else {
-    puts "$module_name: [expr {$activate ? "Activating" : "Deactivating"}]\
+    #puts "$module_name: [expr {$activate ? "Activating" : "Deactivating"}]\
           listen only mode.";
     playMsg [expr {$activate ? "activating" : "deactivating"}];
     playMsg "listen_only";

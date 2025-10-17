@@ -33,7 +33,7 @@ namespace eval SiteStatus {
 	#
 	proc printInfo {msg} {
 		variable module_name
-		puts "$module_name: $msg"
+		##puts "$module_name: $msg"
 	}
 	 
 	proc activateInit {} {

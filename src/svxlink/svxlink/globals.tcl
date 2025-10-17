@@ -24,7 +24,7 @@ if [info exists ::module_name] {
 #   msg The message to print
 #
 proc printDebug {msg} {
-  puts "### ${::print_prefix}: ${msg}"
+  #puts "### ${::print_prefix}: ${msg}"
 }
 
 
@@ -35,7 +35,7 @@ proc printDebug {msg} {
 #   msg The message to print
 #
 proc printInfo {msg} {
-  puts "${::print_prefix}: ${msg}"
+  #puts "${::print_prefix}: ${msg}"
 }
 printInfo "Loading [file normalize [info script]]"
 

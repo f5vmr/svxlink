@@ -13,7 +13,7 @@
 #
 ###############################################################################
 
-puts "${::logic_name}: Loading [file normalize [info script]]"
+#puts "${::logic_name}: Loading [file normalize [info script]]"
 
 
 #

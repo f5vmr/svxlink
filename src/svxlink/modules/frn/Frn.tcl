@@ -54,7 +54,7 @@ proc count_clients {count_clients} {
 #
 proc rf_disable {status activate} {
   variable module_name;
-  puts "$module_name: [expr {$activate ? "Activating" : "Deactivating"}]\
+  #puts "$module_name: [expr {$activate ? "Activating" : "Deactivating"}]\
         listen only mode.";
   playMsg [expr {$activate ? "activating" : "deactivating"}];
   playMsg "rf_disable";
