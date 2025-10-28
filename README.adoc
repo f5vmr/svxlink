@@ -53,3 +53,11 @@ These are some of the resources connected to SvxLink:
   SvxLink Server from here
 * {gh_main}[GitHub Main Page] -- The project site on GitHub
 * {gi_svxlink}[Groups.io SvxLink] -- Communicate with other SvxLink users
+
+**Attribution Block**
+Attribution Block (updated)
+
+Core Software: SVXLink / SvxReflector — Tobias Blömberg SM0SVX
+Dashboard Framework: SP2ONG & SP0DZ
+Additional Contributors: Adi DL1HRC and the SVXLink community
+Modernisation & Integration (PHP 8.2, config editing, live-control, streaming): Chris G4NAB
