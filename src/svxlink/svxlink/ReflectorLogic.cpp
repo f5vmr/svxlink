@@ -1131,8 +1131,9 @@ void ReflectorLogic::onFrameReceived(FramedTcpConnection*,
 
   if ((header.type() >= 100) && (m_con_state < STATE_AUTHENTICATED))
   {
-    cerr << "*** ERROR[" << name() << "]: Unexpected protocol message received"
-         << endl;
+    std::cerr << "*** ERROR[" << name()
+              << "]: Unexpected protocol message received with type="
+              << header.type() << std::endl;
     disconnect();
     return;
   }
