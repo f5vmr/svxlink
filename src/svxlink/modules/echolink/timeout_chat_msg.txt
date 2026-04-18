@@ -1,4 +1,3 @@
---- EchoLink chat message received from LA1TRC-L ---
-LA1TRC-L>Inactivity timeout
+
 
 @?
