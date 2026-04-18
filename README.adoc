@@ -61,3 +61,4 @@ Core Software: SVXLink / SvxReflector — Tobias Blömberg SM0SVX
 Dashboard Framework: SP2ONG & SP0DZ
 Additional Contributors: Adi DL1HRC and the SVXLink community
 Modernisation & Integration (PHP 8.2, config editing, live-control, streaming): Chris G4NAB
+Slight modification to Logging only and the svxlink.service removing svxlink_gpio_setup.service
