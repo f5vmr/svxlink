@@ -822,7 +822,7 @@ class SslX509
 
     /**
      * @brief   Get the public key
-     * @retrun  Returns the public key
+     * @return  Returns the public key
      */
     SslKeypair publicKey(void) const
     {
