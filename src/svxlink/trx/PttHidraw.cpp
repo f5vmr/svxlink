@@ -178,6 +178,12 @@ bool PttHidraw::openDevice(void)
     return false;
   }
 
+  if (hidraw_pin[0] == '!')
+  {
+    m_active_low = true;
+    hidraw_pin.erase(0, 1);
+  }
+
   auto it = pin_mask.find(hidraw_pin);
   if (it == pin_mask.end())
   {
@@ -237,12 +243,6 @@ bool PttHidraw::openDevice(void)
     cerr << "*** ERROR: unknown/unsupported sound chip detected...\n";
     closeDevice();
     return false;
-  }
-
-  if (hidraw_pin[0] == '!')
-  {
-    m_active_low = true;
-    hidraw_pin.erase(0, 1);
   }
 
   return true;
