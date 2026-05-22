@@ -17,7 +17,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 ##############################################################################
-
+# This Repo builds packages for what ever device it is attached.
 ##############################################################################
 # Project setup
 ##############################################################################
@@ -85,7 +85,6 @@ if(NOT CMAKE_BUILD_TYPE)
       FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
 
-
 ##############################################################################
 # Install targets properties setup
 ##############################################################################
@@ -95,55 +94,46 @@ include(GNUInstallDirs)
 
 # Where to install include files
 if(NOT DEFINED INCLUDE_INSTALL_DIR)
-  #set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/include)
   set(INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_FULL_INCLUDEDIR})
 endif(NOT DEFINED INCLUDE_INSTALL_DIR)
 
 # Where to install libraries
 if(NOT DEFINED LIB_INSTALL_DIR)
-  #set(LIB_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX})
   set(LIB_INSTALL_DIR ${CMAKE_INSTALL_FULL_LIBDIR})
 endif(NOT DEFINED LIB_INSTALL_DIR)
 
 # The config directory (normally /etc)
 if(NOT DEFINED SYSCONF_INSTALL_DIR)
-  #set(SYSCONF_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/etc)
   set(SYSCONF_INSTALL_DIR ${CMAKE_INSTALL_FULL_SYSCONFDIR})
 endif(NOT DEFINED SYSCONF_INSTALL_DIR)
 
 # Architecture independent files directory (normally /usr/share)
 if(NOT DEFINED SHARE_INSTALL_PREFIX)
-  #set(SHARE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX}/share)
   set(SHARE_INSTALL_PREFIX ${CMAKE_INSTALL_FULL_DATADIR})
 endif(NOT DEFINED SHARE_INSTALL_PREFIX)
 
 # Local state directory (normally /var)
 if(NOT DEFINED LOCAL_STATE_DIR)
-  #set(LOCAL_STATE_DIR ${CMAKE_INSTALL_PREFIX}/var)
   set(LOCAL_STATE_DIR ${CMAKE_INSTALL_FULL_LOCALSTATEDIR})
 endif(NOT DEFINED LOCAL_STATE_DIR)
 
 # Where to install executables
 if(NOT DEFINED BIN_INSTALL_DIR)
-  #set(BIN_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/bin)
   set(BIN_INSTALL_DIR ${CMAKE_INSTALL_FULL_BINDIR})
 endif(NOT DEFINED BIN_INSTALL_DIR)
 
 # Where to install system executables
 if(NOT DEFINED SBIN_INSTALL_DIR)
-  #set(BIN_INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/bin)
   set(SBIN_INSTALL_DIR ${CMAKE_INSTALL_FULL_SBINDIR})
 endif(NOT DEFINED SBIN_INSTALL_DIR)
 
 # Where to install manual pages
 if(NOT DEFINED MAN_INSTALL_DIR)
-  #set(MAN_INSTALL_DIR ${SHARE_INSTALL_PREFIX}/man)
   set(MAN_INSTALL_DIR ${CMAKE_INSTALL_FULL_MANDIR})
 endif(NOT DEFINED MAN_INSTALL_DIR)
 
 # Where to install documentation
 if(NOT DEFINED DOC_INSTALL_DIR)
-  #set(DOC_INSTALL_DIR ${SHARE_INSTALL_PREFIX}/doc/svxlink)
   set(DOC_INSTALL_DIR ${CMAKE_INSTALL_FULL_DOCDIR})
 endif(NOT DEFINED DOC_INSTALL_DIR)
 
@@ -192,100 +182,6 @@ set(CONFIG_FILES "" CACHE INTERNAL "CONFIG_FILES")
 set(FILE_OWNER "" CACHE INTERNAL "FILE_OWNER")
 
 ##############################################################################
-# Functions
-##############################################################################
-
-# Create an include file under the global include directory
-function(expinc filename)
-  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${filename}
-    ${PROJECT_INCLUDE_DIR}/${filename}
-    COPYONLY
-    )
-endfunction(expinc)
-
-# Create a post install target to change the owner of an installed file.
-# If DO_INSTALL_CHOWN is set to YES, the owner will be changed during
-# installation.
-# If DO_INSTALL_CHOWN is unset, the DESTDIR environment variable will be
-# examined. If it is set, no chown operations will be performed since we are
-# probably not running as a user with administrative rights. If DESTDIR is
-# unset, chown operations are performed.
-function(install_chown filename owner)
-  if(owner)
-    set(FILE_OWNER "${FILE_OWNER}${owner} ${filename};"
-	    CACHE INTERNAL "FILE_OWNER")
-    set(chown_commands "
-      set(CHOWN_TOOL ${CHOWN_TOOL})
-      if(NOT CHOWN_TOOL)
-        MESSAGE(FATAL_ERROR \"Unable to find the 'chown' utility\")
-      endif(NOT CHOWN_TOOL)
-      set(full_filename \"\$ENV{DESTDIR}${filename}\")
-      message(STATUS \"Setting owner of \${full_filename} to ${owner}...\")
-      execute_process(
-        COMMAND ${CHOWN_TOOL} ${owner} \"\${full_filename}\"
-        RESULT_VARIABLE cmd_result
-        )
-      if(NOT \${cmd_result} EQUAL 0)
-        MESSAGE(FATAL_ERROR
-          \"Error while changing owner of file \${full_filename}\"
-          )
-      endif(NOT \${cmd_result} EQUAL 0)
-      ")
-    if(DEFINED DO_INSTALL_CHOWN)
-      if(DO_INSTALL_CHOWN)
-        install(CODE "${chown_commands}")
-      endif(DO_INSTALL_CHOWN)
-    else(DEFINED DO_INSTALL_CHOWN)
-      install(CODE "
-        if(\"\$ENV{DESTDIR}\" STREQUAL \"\")
-          ${chown_commands}
-        endif(\"\$ENV{DESTDIR}\" STREQUAL \"\")
-        ")
-    endif(DEFINED DO_INSTALL_CHOWN)
-  endif(owner)
-endfunction(install_chown)
-
-# Create the given directory during installation
-#   install_mkdir(directory [owner])
-function(install_mkdir dir)
-  set(owner ${ARGV1})
-  get_filename_component(parent ${dir} PATH)
-  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}${dir})
-  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}${dir} DESTINATION ${parent})
-  install_chown(${dir} "${owner}")
-endfunction(install_mkdir)
-
-# Before installing the file, check if it exists. If it does, don't
-# overwrite it.
-#   install_if_not_exists(source_file destination_directory)
-function(install_if_not_exists src dest)
-  if(NOT IS_ABSOLUTE "${src}")
-    set(src "${CMAKE_CURRENT_SOURCE_DIR}/${src}")
-  endif()
-  get_filename_component(src_name "${src}" NAME)
-  if (NOT IS_ABSOLUTE "${dest}")
-    set(dest "${CMAKE_INSTALL_PREFIX}/${dest}")
-  endif()
-  set(CONFIG_FILES "${CONFIG_FILES}${dest}/${src_name} "
-	  CACHE INTERNAL "CONFIG_FILES")
-  install(CODE "
-    if(NOT EXISTS \"\$ENV{DESTDIR}${dest}/${src_name}\")
-      #file(INSTALL \"${src}\" DESTINATION \"${dest}\")
-      message(STATUS \"Installing: \$ENV{DESTDIR}${dest}/${src_name}\")
-      execute_process(COMMAND \${CMAKE_COMMAND} -E copy \"${src}\"
-                      \"\$ENV{DESTDIR}${dest}/${src_name}\"
-                      RESULT_VARIABLE copy_result
-                      ERROR_VARIABLE error_output)
-      if(copy_result)
-        message(FATAL_ERROR \${error_output})
-      endif()
-    else()
-      message(STATUS \"Skipping  : \$ENV{DESTDIR}${dest}/${src_name}\")
-    endif()
-  ")
-endfunction(install_if_not_exists)
-
-##############################################################################
 # Main execution starts here
 ##############################################################################
 
@@ -294,7 +190,7 @@ add_subdirectory(include)
 configure_file(${CMAKE_SOURCE_DIR}/config.h.in
   ${CMAKE_BINARY_DIR}/config.h
   @ONLY
-  )
+)
 
 # Find the Sigc++ library
 find_package(SIGC REQUIRED)
@@ -313,17 +209,16 @@ if(LADSPA_FOUND)
       "Found LADSPA but version could not be resolved. "
       "Will proceed without LADSPA.")
   endif()
-else(LADSPA_FOUND)
-  message("--   LADSPA is an optional dependency. The build will complete")
-  message("--   without it but support for loading LADSPA plugins will")
-  message("--   be unavailable.")
-endif(LADSPA_FOUND)
+else()
+  message("--   LADSPA is an optional dependency.")
+endif()
 
 # Find the chown utility
 include(FindCHOWN)
 
 set(SVXLINK_USER "svxlink" CACHE STRING "Set SvxLink system user")
 set(SVXLINK_GROUP "svxlink" CACHE STRING "Set SvxLink system group")
+
 message(STATUS "SvxLink user = ${SVXLINK_USER}")
 message(STATUS "SvxLink group = ${SVXLINK_GROUP}")
 
@@ -334,42 +229,102 @@ add_subdirectory(misc)
 add_subdirectory(echolib)
 add_subdirectory(locationinfo)
 add_subdirectory(svxlink)
+
 if(USE_QT)
   add_subdirectory(qtel)
-endif(USE_QT)
+endif()
 
+##############################################################################
 # Experimental CPack package building
+##############################################################################
+
 set(CPACK_SET_DESTDIR "ON")
+
+set(CPACK_PACKAGE_NAME "svxlink")
+
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
   "Advanced voice services system for ham radio use")
+
 string(REPLACE "-" "." CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 string(REGEX REPLACE "^[Vv]" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
+
 # If version does NOT start with a digit (e.g. "master", "main", "dev")
-# replace it with 25.5
+# replace it with 25.05.03
 if(NOT CPACK_PACKAGE_VERSION MATCHES "^[0-9]")
-  set(CPACK_PACKAGE_VERSION "25.5")
+  set(CPACK_PACKAGE_VERSION "25.05.03")
 endif()
+
 message(STATUS "Package Version = ${CPACK_PACKAGE_VERSION}")
+
 set(CPACK_PACKAGE_DESCRIPTION
   "The SvxLink project develops an advanced voice services system for ham radio use. It can be run on a simplex frequency or act as a repeater controller.")
-set(CPACK_PACKAGE_VENDOR "SM0SVX Modified a teeny bit by G4NAB")
-set(CPACK_PACKAGE_CONTACT "SvxLink Community <svxlink@groups.io>")
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/../COPYRIGHT")
-set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/../README.adoc")
 
-if (CPACK_GENERATOR STREQUAL "DEB")
-  #set(CPACK_DEBIAN_PACKAGE_DEPENDS "libsigc++-2.0-0v5, libgsm1, libpopt0, tcl, libgcrypt20, libspeex1, libasound2, libopus0, alsa-utils, vorbis-tools, libcurl4, rtl-sdr, libjsoncpp1")
-  string(REPLACE " " "\n" CONFIG_FILES_NL "${CONFIG_FILES}")
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/conffiles" "${CONFIG_FILES_NL}")
+set(CPACK_PACKAGE_VENDOR "SM0SVX / G4NAB")
+
+set(CPACK_PACKAGE_CONTACT "SvxLink Community <svxlink@groups.io>")
+
+set(CPACK_RESOURCE_FILE_LICENSE
+  "${CMAKE_SOURCE_DIR}/../COPYRIGHT")
+
+set(CPACK_RESOURCE_FILE_README
+  "${CMAKE_SOURCE_DIR}/../README.adoc")
+
+##############################################################################
+# Debian package settings
+##############################################################################
+
+if(CPACK_GENERATOR STREQUAL "DEB")
+
+  set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+
+  # Detect Debian architecture automatically
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7l|armhf|armv7.*)$")
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
+
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "arm64")
+
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+
+  else()
+    set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+      "${CMAKE_SYSTEM_PROCESSOR}")
+  endif()
+
+  # Use standard Debian filename format:
+  # svxlink_<version>_<arch>.deb
+  set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+  # Optional dependency list
+  # set(CPACK_DEBIAN_PACKAGE_DEPENDS
+  #   "libsigc++-2.0-0v5, libgsm1, libpopt0, tcl")
+
+  string(REPLACE " " "\n"
+    CONFIG_FILES_NL "${CONFIG_FILES}")
+
+  file(WRITE
+    "${CMAKE_CURRENT_BINARY_DIR}/conffiles"
+    "${CONFIG_FILES_NL}")
+
   foreach(file ${FILE_OWNER})
-    set(chown_file_commands "${chown_file_commands}${CHOWN_TOOL} ${file}\n")
+    set(chown_file_commands
+      "${chown_file_commands}${CHOWN_TOOL} ${file}\n")
   endforeach()
-  file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/postinst"
+
+  file(WRITE
+    "${CMAKE_CURRENT_BINARY_DIR}/postinst"
+
     "getent group ${SVXLINK_GROUP} >/dev/null || groupadd -r ${SVXLINK_GROUP}\n"
+
     "getent passwd ${SVXLINK_USER} >/dev/null || useradd -r -g ${SVXLINK_GROUP} ${SVXLINK_USER}\n"
-    "${chown_file_commands}")
-  set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/conffiles;${CMAKE_CURRENT_BINARY_DIR}/postinst")
-endif(CPACK_GENERATOR STREQUAL "DEB")
+
+    "${chown_file_commands}"
+  )
+
+  set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
+    "${CMAKE_CURRENT_BINARY_DIR}/conffiles;${CMAKE_CURRENT_BINARY_DIR}/postinst")
+
+endif()
 
 include(CPack)
