@@ -345,6 +345,10 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
 string(REPLACE "-" "." CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 string(REGEX REPLACE "^[Vv]" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
 
+# Remove old platform suffixes accidentally inherited from version/tag names
+string(REGEX REPLACE "\\.(X86|ARMHF|ARM64|AMD64)$" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
+string(REGEX REPLACE "-(X86|ARMHF|ARM64|AMD64)$" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
+
 # If version does NOT start with a digit (e.g. "master", "main", "dev")
 # replace it with 25.05.03
 if(NOT CPACK_PACKAGE_VERSION MATCHES "^[0-9]")
