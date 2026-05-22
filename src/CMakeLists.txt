@@ -180,7 +180,104 @@ endif(NOT DEFINED SVX_LOGIC_CORE_INSTALL_DIR)
 # Clear global variables implemented using internal cache
 set(CONFIG_FILES "" CACHE INTERNAL "CONFIG_FILES")
 set(FILE_OWNER "" CACHE INTERNAL "FILE_OWNER")
+##############################################################################
+# Functions
+##############################################################################
 
+# Create an include file under the global include directory
+function(expinc filename)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${filename}
+    ${PROJECT_INCLUDE_DIR}/${filename}
+    COPYONLY
+    )
+endfunction(expinc)
+
+# Create a post install target to change the owner of an installed file.
+# If DO_INSTALL_CHOWN is set to YES, the owner will be changed during
+# installation.
+# If DO_INSTALL_CHOWN is unset, the DESTDIR environment variable will be
+# examined. If it is set, no chown operations will be performed since we are
+# probably not running as a user with administrative rights. If DESTDIR is
+# unset, chown operations are performed.
+function(install_chown filename owner)
+  if(owner)
+    set(FILE_OWNER "${FILE_OWNER}${owner} ${filename};"
+        CACHE INTERNAL "FILE_OWNER")
+    set(chown_commands "
+      set(CHOWN_TOOL ${CHOWN_TOOL})
+      if(NOT CHOWN_TOOL)
+        MESSAGE(FATAL_ERROR \"Unable to find the 'chown' utility\")
+      endif(NOT CHOWN_TOOL)
+      set(full_filename \"\$ENV{DESTDIR}${filename}\")
+      message(STATUS \"Setting owner of \${full_filename} to ${owner}...\")
+      execute_process(
+        COMMAND ${CHOWN_TOOL} ${owner} \"\${full_filename}\"
+        RESULT_VARIABLE cmd_result
+        )
+      if(NOT \${cmd_result} EQUAL 0)
+        MESSAGE(FATAL_ERROR
+          \"Error while changing owner of file \${full_filename}\"
+          )
+      endif(NOT \${cmd_result} EQUAL 0)
+      ")
+    if(DEFINED DO_INSTALL_CHOWN)
+      if(DO_INSTALL_CHOWN)
+        install(CODE "${chown_commands}")
+      endif(DO_INSTALL_CHOWN)
+    else()
+      install(CODE "
+        if(\"\$ENV{DESTDIR}\" STREQUAL \"\")
+          ${chown_commands}
+        endif(\"\$ENV{DESTDIR}\" STREQUAL \"\")
+        ")
+    endif()
+  endif()
+endfunction(install_chown)
+
+# Create the given directory during installation
+#   install_mkdir(directory [owner])
+function(install_mkdir dir)
+  set(owner ${ARGV1})
+  get_filename_component(parent ${dir} PATH)
+  file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}${dir})
+  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}${dir} DESTINATION ${parent})
+  install_chown(${dir} "${owner}")
+endfunction(install_mkdir)
+
+# Before installing the file, check if it exists. If it does, don't
+# overwrite it.
+#   install_if_not_exists(source_file destination_directory)
+function(install_if_not_exists src dest)
+  if(NOT IS_ABSOLUTE "${src}")
+    set(src "${CMAKE_CURRENT_SOURCE_DIR}/${src}")
+  endif()
+
+  get_filename_component(src_name "${src}" NAME)
+
+  if(NOT IS_ABSOLUTE "${dest}")
+    set(dest "${CMAKE_INSTALL_PREFIX}/${dest}")
+  endif()
+
+  set(CONFIG_FILES "${CONFIG_FILES}${dest}/${src_name} "
+      CACHE INTERNAL "CONFIG_FILES")
+
+  install(CODE "
+    if(NOT EXISTS \"\$ENV{DESTDIR}${dest}/${src_name}\")
+      message(STATUS \"Installing: \$ENV{DESTDIR}${dest}/${src_name}\")
+      execute_process(
+        COMMAND \${CMAKE_COMMAND} -E copy \"${src}\"
+                \"\$ENV{DESTDIR}${dest}/${src_name}\"
+        RESULT_VARIABLE copy_result
+        ERROR_VARIABLE error_output
+      )
+      if(copy_result)
+        message(FATAL_ERROR \${error_output})
+      endif()
+    else()
+      message(STATUS \"Skipping  : \$ENV{DESTDIR}${dest}/${src_name}\")
+    endif()
+  ")
+endfunction(install_if_not_exists)
 ##############################################################################
 # Main execution starts here
 ##############################################################################
