@@ -350,7 +350,7 @@ string(REGEX REPLACE "([.-](X86|x86|AMD64|amd64|ARM64|arm64|ARMHF|armhf))$" "" C
 # If version does NOT start with a digit (e.g. "master", "main", "dev")
 # replace it with 25.05.03
 if(NOT CPACK_PACKAGE_VERSION MATCHES "^[0-9]")
-  set(CPACK_PACKAGE_VERSION "25.05.03")
+  set(CPACK_PACKAGE_VERSION "26.05")
 endif()
 
 message(STATUS "Package Version = ${CPACK_PACKAGE_VERSION}")
