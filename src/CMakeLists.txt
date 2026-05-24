@@ -22,7 +22,7 @@
 # Project setup
 ##############################################################################
 cmake_minimum_required(VERSION 3.7...3.30)
-project(svxlink C CXX)
+project(svxlink VERSION 26.05 LANGUAGES C CXX)
 #enable_testing()
 
 # The path to the project global include directory
