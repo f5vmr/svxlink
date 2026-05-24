@@ -348,7 +348,7 @@ string(REGEX REPLACE "^[Vv]" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}"
 # Remove stale architecture/platform suffixes from inherited version/tag names
 string(REGEX REPLACE "([.-](X86|x86|AMD64|amd64|ARM64|arm64|ARMHF|armhf))$" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
 # If version does NOT start with a digit (e.g. "master", "main", "dev")
-# replace it with 25.05.03
+# replace it with 26.05
 if(NOT CPACK_PACKAGE_VERSION MATCHES "^[0-9]")
   set(CPACK_PACKAGE_VERSION "26.05")
 endif()
