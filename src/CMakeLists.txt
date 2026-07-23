@@ -342,16 +342,9 @@ set(CPACK_PACKAGE_NAME "svxlink")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY
   "Advanced voice services system for ham radio use")
 
-string(REPLACE "-" "." CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-string(REGEX REPLACE "^[Vv]" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
-
-# Remove stale architecture/platform suffixes from inherited version/tag names
-string(REGEX REPLACE "([.-](X86|x86|AMD64|amd64|ARM64|arm64|ARMHF|armhf))$" "" CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION}")
-# If version does NOT start with a digit (e.g. "master", "main", "dev")
-# replace it with 26.05
-if(NOT CPACK_PACKAGE_VERSION MATCHES "^[0-9]")
-  set(CPACK_PACKAGE_VERSION "26.05")
-endif()
+# Use the version declared by project(svxlink VERSION ...)
+# rather than the Git-derived PROJECT_VERSION exported by include/.
+set(CPACK_PACKAGE_VERSION "${svxlink_VERSION}")
 
 message(STATUS "Package Version = ${CPACK_PACKAGE_VERSION}")
 
