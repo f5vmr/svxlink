@@ -31,7 +31,7 @@ execute_process(
 if("${PROJECT_VERSION}" STREQUAL "")
   set(PROJECT_VERSION "${VER_PROJECT}")
 endif()
-#set(PROJECT_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)
+set(PROJECT_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)
 
 foreach(version ${versions})
   string(REGEX REPLACE \(.*\)=\(.*\) "\\1" ver_name ${version})
