@@ -369,7 +369,26 @@ if(CPACK_GENERATOR STREQUAL "DEB")
 
   set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
 
-  # Detect Debian architecture automatically
+# Detect the Debian userland/package architecture.
+# This is preferable to CMAKE_SYSTEM_PROCESSOR because a 32-bit
+# armhf userland may run under a 64-bit aarch64 kernel.
+find_program(DPKG_EXECUTABLE dpkg)
+
+if(DPKG_EXECUTABLE)
+  execute_process(
+    COMMAND "${DPKG_EXECUTABLE}" --print-architecture
+    OUTPUT_VARIABLE CPACK_DEBIAN_PACKAGE_ARCHITECTURE
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE DPKG_ARCH_RESULT
+  )
+endif()
+
+# Fall back to the processor reported by CMake if dpkg is unavailable
+# or does not return an architecture.
+if(NOT DPKG_EXECUTABLE
+   OR NOT DPKG_ARCH_RESULT EQUAL 0
+   OR CPACK_DEBIAN_PACKAGE_ARCHITECTURE STREQUAL "")
+
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(armv7l|armhf|armv7.*)$")
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
 
@@ -383,14 +402,19 @@ if(CPACK_GENERATOR STREQUAL "DEB")
     set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE
       "${CMAKE_SYSTEM_PROCESSOR}")
   endif()
+endif()
 
-  # Use standard Debian filename format:
-  # svxlink_<version>_<arch>.deb
-  set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+message(STATUS
+  "Debian package architecture: ${CPACK_DEBIAN_PACKAGE_ARCHITECTURE}"
+)
 
-  # Optional dependency list
-  # set(CPACK_DEBIAN_PACKAGE_DEPENDS
-  #   "libsigc++-2.0-0v5, libgsm1, libpopt0, tcl")
+# Use standard Debian filename format:
+# svxlink_<version>_<arch>.deb
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+# Optional dependency list
+# set(CPACK_DEBIAN_PACKAGE_DEPENDS
+#   "libsigc++-2.0-0v5, libgsm1, libpopt0, tcl")
 
   string(REPLACE " " "\n"
     CONFIG_FILES_NL "${CONFIG_FILES}")
