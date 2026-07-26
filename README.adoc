@@ -64,4 +64,4 @@ Additional Contributors: Adi DL1HRC and the SVXLink community
 Chris G4NAB
 Slight modification to Logging default and control of Hidraw only . 
 Changes to CMake.txt to enable rapid deployment as .deb 
-Date of update 22.7.2026
+Date of update 26.7.2026 Version 26.05.1
