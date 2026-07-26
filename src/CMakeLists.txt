@@ -22,7 +22,38 @@
 # Project setup
 ##############################################################################
 cmake_minimum_required(VERSION 3.7...3.30)
-project(svxlink VERSION 26.05 LANGUAGES C CXX)
+# Read the release version from the top-level "versions" file
+file(
+  STRINGS
+  "${CMAKE_CURRENT_LIST_DIR}/versions"
+  SVXLINK_VERSION_LINE
+  REGEX "^PROJECT=[0-9]+\\.[0-9]+(\\.[0-9]+)?$"
+)
+
+if(NOT SVXLINK_VERSION_LINE)
+  message(FATAL_ERROR
+    "Could not find a valid PROJECT= version in "
+    "${CMAKE_CURRENT_LIST_DIR}/versions"
+  )
+endif()
+
+string(
+  REGEX REPLACE
+  "^PROJECT="
+  ""
+  SVXLINK_RELEASE_VERSION
+  "${SVXLINK_VERSION_LINE}"
+)
+
+message(STATUS
+  "SvxLink release version from versions file: ${SVXLINK_RELEASE_VERSION}"
+)
+
+project(
+  svxlink
+  VERSION "${SVXLINK_RELEASE_VERSION}"
+  LANGUAGES C CXX
+)
 #enable_testing()
 
 # The path to the project global include directory
