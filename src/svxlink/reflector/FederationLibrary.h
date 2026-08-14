@@ -67,6 +67,31 @@ class FederationLibrary
       }
     };
 
+    struct TalkgroupPattern
+    {
+      enum Type
+      {
+        TYPE_EXACT,
+        TYPE_PREFIX
+      };
+
+      Type          type;
+      std::uint32_t exact;
+      std::string   prefix;
+
+      TalkgroupPattern(void)
+        : type(TYPE_EXACT), exact(0)
+      {
+      }
+    };
+
+    struct PeerPolicy
+    {
+      std::string                   peer;
+      std::vector<TalkgroupPattern> import_patterns;
+      std::vector<TalkgroupPattern> export_patterns;
+    };
+
     FederationLibrary(void);
     ~FederationLibrary(void);
 
@@ -89,12 +114,20 @@ class FederationLibrary
     }
 
     const Route* findRoute(std::uint32_t tg) const;
+    bool mayImport(const std::string& peer, std::uint32_t tg) const;
+    bool mayExport(const std::string& peer, std::uint32_t tg) const;
+
+    const std::vector<PeerPolicy>& peerPolicies(void) const
+    {
+      return m_peer_policies;
+    }
 
   private:
     unsigned       m_schema;
     std::uint64_t  m_generation;
     std::string    m_domain;
     std::vector<Route>  m_routes;
+    std::vector<PeerPolicy>  m_peer_policies;
 
     FederationLibrary(const FederationLibrary&);
     FederationLibrary& operator=(const FederationLibrary&);

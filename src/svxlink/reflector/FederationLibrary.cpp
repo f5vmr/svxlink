@@ -202,6 +202,200 @@ namespace {
 
     return true;
   }
+
+  bool parseTalkgroupPattern(
+      const Json::Value& value,
+      FederationLibrary::TalkgroupPattern& pattern,
+      std::string& error)
+  {
+    if (!value.isString())
+    {
+      error = "talkgroup pattern must be a string";
+      return false;
+    }
+
+    const std::string text(value.asString());
+    if (text.empty())
+    {
+      error = "talkgroup pattern must not be empty";
+      return false;
+    }
+
+    const std::string::size_type wildcard = text.find('*');
+
+    if (wildcard == std::string::npos)
+    {
+      std::uint32_t exact = 0;
+      if (!parsePositiveUint32(text, exact))
+      {
+        error = "exact talkgroup pattern must contain only digits";
+        return false;
+      }
+
+      pattern.type =
+          FederationLibrary::TalkgroupPattern::TYPE_EXACT;
+      pattern.exact = exact;
+      return true;
+    }
+
+    if ((wildcard != (text.size() - 1)) ||
+        (text.find('*', wildcard + 1) != std::string::npos))
+    {
+      error = "talkgroup wildcard must appear once at the end";
+      return false;
+    }
+
+    const std::string prefix(text.substr(0, wildcard));
+    std::uint32_t unused = 0;
+    if (!parsePositiveUint32(prefix, unused))
+    {
+      error = "talkgroup prefix must contain digits before the wildcard";
+      return false;
+    }
+
+    pattern.type =
+        FederationLibrary::TalkgroupPattern::TYPE_PREFIX;
+    pattern.prefix = prefix;
+    return true;
+  }
+  bool matchesTalkgroupPattern(
+      const FederationLibrary::TalkgroupPattern& pattern,
+      std::uint32_t tg)
+  {
+    if (pattern.type ==
+        FederationLibrary::TalkgroupPattern::TYPE_EXACT)
+    {
+      return pattern.exact == tg;
+    }
+
+    std::ostringstream tg_stream;
+    tg_stream << tg;
+    const std::string tg_text(tg_stream.str());
+
+    return (pattern.prefix.size() <= tg_text.size()) &&
+           (tg_text.compare(0,
+                            pattern.prefix.size(),
+                            pattern.prefix) == 0);
+  }
+
+  bool matchesAnyPattern(
+      const std::vector<FederationLibrary::TalkgroupPattern>& patterns,
+      std::uint32_t tg)
+  {
+    for (std::vector<FederationLibrary::TalkgroupPattern>::
+             const_iterator it=patterns.begin();
+         it!=patterns.end(); ++it)
+    {
+      if (matchesTalkgroupPattern(*it, tg))
+      {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool parsePatternList(
+      const Json::Value& values,
+      const std::string& peer,
+      const std::string& direction,
+      std::vector<FederationLibrary::TalkgroupPattern>& patterns,
+      std::string& error)
+  {
+    if (!values.isArray())
+    {
+      error = "Peer policy " + peer + "/" + direction +
+              " must be an array";
+      return false;
+    }
+
+    for (Json::Value::ArrayIndex index=0;
+         index<values.size(); ++index)
+    {
+      FederationLibrary::TalkgroupPattern pattern;
+      std::string pattern_error;
+
+      if (!parseTalkgroupPattern(values[index],
+                                 pattern,
+                                 pattern_error))
+      {
+        std::ostringstream message;
+        message << "Peer policy " << peer << "/"
+                << direction << " entry " << index
+                << ": " << pattern_error;
+        error = message.str();
+        return false;
+      }
+
+      patterns.push_back(pattern);
+    }
+
+    return true;
+  }
+
+
+  bool validatePeerPolicies(
+      const Json::Value& root,
+      std::vector<FederationLibrary::PeerPolicy>& policies,
+      std::string& error)
+  {
+    if (!root.isMember("peer_policy"))
+    {
+      return true;
+    }
+
+    const Json::Value& policy_root(root["peer_policy"]);
+    if (!policy_root.isObject())
+    {
+      error = "Federation library peer_policy must be an object";
+      return false;
+    }
+
+    const Json::Value::Members peers(policy_root.getMemberNames());
+
+    for (Json::Value::Members::const_iterator it=peers.begin();
+         it!=peers.end(); ++it)
+    {
+      if (it->empty())
+      {
+        error = "Federation peer policy name must not be empty";
+        return false;
+      }
+
+      const Json::Value& value(policy_root[*it]);
+      if (!value.isObject())
+      {
+        error = "Federation peer policy " + *it +
+                " must be an object";
+        return false;
+      }
+
+      FederationLibrary::PeerPolicy policy;
+      policy.peer = *it;
+
+      if (!parsePatternList(value["import"],
+                            policy.peer,
+                            "import",
+                            policy.import_patterns,
+                            error))
+      {
+        return false;
+      }
+
+      if (!parsePatternList(value["export"],
+                            policy.peer,
+                            "export",
+                            policy.export_patterns,
+                            error))
+      {
+        return false;
+      }
+
+      policies.push_back(policy);
+    }
+
+    return true;
+  }
 } /* namespace */
 
 
@@ -281,6 +475,42 @@ FederationLibrary::findRoute(std::uint32_t tg) const
 
   return best_route;
 } /* FederationLibrary::findRoute */
+
+
+bool FederationLibrary::mayImport(const std::string& peer,
+                                  std::uint32_t tg) const
+{
+  for (std::vector<PeerPolicy>::const_iterator
+           it=m_peer_policies.begin();
+       it!=m_peer_policies.end(); ++it)
+  {
+    if (it->peer == peer)
+    {
+      return matchesAnyPattern(it->import_patterns, tg);
+    }
+  }
+
+  return false;
+} /* FederationLibrary::mayImport */
+
+
+bool FederationLibrary::mayExport(const std::string& peer,
+                                  std::uint32_t tg) const
+{
+  for (std::vector<PeerPolicy>::const_iterator
+           it=m_peer_policies.begin();
+       it!=m_peer_policies.end(); ++it)
+  {
+    if (it->peer == peer)
+    {
+      return matchesAnyPattern(it->export_patterns, tg);
+    }
+  }
+
+  return false;
+} /* FederationLibrary::mayExport */
+
+
 
 bool FederationLibrary::load(const std::string& path,
                              const std::string& expected_domain,
@@ -371,11 +601,18 @@ bool FederationLibrary::load(const std::string& path,
     candidate_routes.push_back(parsed_route);
   }
 
+  std::vector<PeerPolicy> candidate_peer_policies;
+  if (!validatePeerPolicies(root, candidate_peer_policies, error))
+
+  {
+    return false;
+  }
   // Commit metadata only after the complete candidate has passed validation.
   m_schema = root["schema"].asUInt();
   m_generation = candidate_generation;
   m_domain = candidate_domain;
   m_routes.swap(candidate_routes);
+  m_peer_policies.swap(candidate_peer_policies);
 
   error.clear();
   return true;
