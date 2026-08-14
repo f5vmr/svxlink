@@ -66,6 +66,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Reflector.h"
 #include "ReflectorClient.h"
+#include "ReflectorFederation.h"
 #include "TGHandler.h"
 
 
@@ -231,6 +232,7 @@ time_t Reflector::timeToRenewCert(const Async::SslX509& cert)
 Reflector::Reflector(void)
   : m_srv(0), m_udp_sock(0), m_tg_for_v1_clients(1), m_random_qsy_lo(0),
     m_random_qsy_hi(0), m_random_qsy_tg(0), m_http_server(0), m_cmd_pty(0),
+    m_federation(0),
     m_keys_dir("private/"), m_pending_csrs_dir("pending_csrs/"),
     m_csrs_dir("csrs/"), m_certs_dir("certs/"), m_pki_dir("pki/")
 {
@@ -262,6 +264,8 @@ Reflector::Reflector(void)
 
 Reflector::~Reflector(void)
 {
+  delete m_federation;
+  m_federation = 0;
   delete m_http_server;
   m_http_server = 0;
   delete m_udp_sock;
@@ -367,6 +371,13 @@ bool Reflector::initialize(Async::Config &cfg)
   }
 
   m_cfg->getValue("GLOBAL", "ACCEPT_CERT_EMAIL", m_accept_cert_email);
+  m_federation = new ReflectorFederation;
+  if ((m_federation == 0) || !m_federation->initialize(cfg))
+  {
+    std::cerr << "*** ERROR: Could not initialize reflector federation"
+              << std::endl;
+    return false;
+  }
 
   m_cfg->valueUpdated.connect(sigc::mem_fun(*this, &Reflector::cfgUpdated));
 

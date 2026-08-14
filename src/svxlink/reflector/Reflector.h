@@ -78,6 +78,7 @@ namespace Async
   class Pty;
 };
 
+class ReflectorFederation;
 class ReflectorMsg;
 class ReflectorUdpMsg;
 
@@ -264,6 +265,7 @@ class Reflector : public sigc::trackable
     uint32_t                    m_random_qsy_tg;
     HttpServer*                 m_http_server;
     Async::Pty*                 m_cmd_pty;
+    ReflectorFederation*        m_federation;
     Async::SslContext           m_ssl_ctx;
     std::string                 m_keys_dir;
     std::string                 m_pending_csrs_dir;
