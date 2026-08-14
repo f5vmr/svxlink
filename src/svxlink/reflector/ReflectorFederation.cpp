@@ -90,12 +90,21 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
     return false;
   }
 
+  std::string library_error;
+  if (!m_library.load(m_library_path, m_domain, library_error))
+  {
+    std::cerr << "*** ERROR: " << library_error << std::endl;
+    return false;
+  }
+
   std::cout << "Reflector federation enabled:"
             << " domain=" << m_domain
             << " reflector_id=" << m_reflector_id
             << " callsign=" << m_callsign
             << " peers=" << m_peers.size()
             << " library=" << m_library_path
+            << " generation=" << m_library.generation()
+            << " routes=" << m_library.routeCount()
             << std::endl;
 
   return true;

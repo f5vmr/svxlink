@@ -17,6 +17,17 @@ the Free Software Foundation; either version 2 of the License, or
 #ifndef REFLECTOR_FEDERATION_INCLUDED
 #define REFLECTOR_FEDERATION_INCLUDED
 
+/****************************************************************************
+ *
+ * System Includes
+ *
+ ****************************************************************************/
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+
 
 /****************************************************************************
  *
@@ -26,9 +37,14 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <AsyncConfig.h>
 
-#include <string>
-#include <vector>
 
+/****************************************************************************
+ *
+ * Local Includes
+ *
+ ****************************************************************************/
+
+#include "FederationLibrary.h"
 
 /****************************************************************************
  *
@@ -50,6 +66,7 @@ class ReflectorFederation
 
     bool initialize(Async::Config& cfg);
     bool isEnabled(void) const { return m_enabled; }
+
     const std::string& domain(void) const { return m_domain; }
     const std::string& reflectorId(void) const { return m_reflector_id; }
     const std::string& callsign(void) const { return m_callsign; }
@@ -59,13 +76,25 @@ class ReflectorFederation
     {
       return m_peers;
     }
+
+    std::uint64_t libraryGeneration(void) const
+    {
+      return m_library.generation();
+    }
+
+    std::size_t routeCount(void) const
+    {
+      return m_library.routeCount();
+    }
+
   private:
-    bool m_enabled;
+    bool                      m_enabled;
     std::string               m_domain;
     std::string               m_reflector_id;
     std::string               m_callsign;
     std::string               m_library_path;
     std::vector<std::string>  m_peers;
+    FederationLibrary         m_library;
 
     ReflectorFederation(const ReflectorFederation&);
     ReflectorFederation& operator=(const ReflectorFederation&);
