@@ -26,6 +26,9 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <AsyncConfig.h>
 
+#include <string>
+#include <vector>
+
 
 /****************************************************************************
  *
@@ -47,9 +50,22 @@ class ReflectorFederation
 
     bool initialize(Async::Config& cfg);
     bool isEnabled(void) const { return m_enabled; }
+    const std::string& domain(void) const { return m_domain; }
+    const std::string& reflectorId(void) const { return m_reflector_id; }
+    const std::string& callsign(void) const { return m_callsign; }
+    const std::string& libraryPath(void) const { return m_library_path; }
 
+    const std::vector<std::string>& peers(void) const
+    {
+      return m_peers;
+    }
   private:
     bool m_enabled;
+    std::string               m_domain;
+    std::string               m_reflector_id;
+    std::string               m_callsign;
+    std::string               m_library_path;
+    std::vector<std::string>  m_peers;
 
     ReflectorFederation(const ReflectorFederation&);
     ReflectorFederation& operator=(const ReflectorFederation&);
