@@ -130,6 +130,83 @@ Activity on one federated talkgroup must not:
 Talker state, stream identity, timers and routing must therefore be maintained
 independently for every talkgroup.
 
+## Transport and Authentication
+
+The initial federation transport uses an authenticated SVXReflector
+V2-compatible session. This includes V3-capable reflectors that continue to
+accept V2 clients through the existing `[USERS]` and `[PASSWORDS]` mechanism.
+
+Participating reflectors are managed by known administrators who establish
+bilateral trust, exchange peer-specific authentication keys and explicitly
+authorise federation identities. X.509 certificates are therefore not
+required for the initial trusted federation.
+
+V3 certificate-based transport may be added later without changing the
+federation talkgroup, stream or routing model.
+
+Authentication and federation identity are separate:
+
+1. The configured federation `CALLSIGN` passes the existing V2
+   challenge-response authentication.
+2. The authenticated callsign must exist in `FEDERATION_TRUST`.
+3. The federation hello must contain the `REFLECTOR_ID` expected for that
+   trusted peer.
+4. Only then may federation stream messages be accepted.
+
+An authenticated ordinary reflector client has no federation privileges
+unless its callsign is explicitly present in `FEDERATION_TRUST`.
+
+## Federation Wire Protocol
+
+Federation control messages use the authenticated TCP session. Opus audio uses
+the associated UDP session.
+
+The federation protocol is an application protocol carried over the existing
+SVXReflector transport. Its version is independent of the underlying
+SVXReflector protocol version.
+
+### Control Messages
+
+Initial message allocation:
+
+| Type | Name | Purpose |
+|---:|---|---|
+| 200 | `FederationHello` | Advertise and verify federation identity and capabilities |
+| 201 | `FederationHelloAck` | Accept the negotiated federation protocol |
+| 202 | `FederationStreamStart` | Request permission to begin one talkgroup stream |
+| 203 | `FederationStreamResult` | Accept or reject a stream request |
+| 204 | `FederationStreamStop` | Close one talkgroup stream |
+
+`FederationHello` contains:
+
+- federation protocol major and minor version;
+- stable local `REFLECTOR_ID`;
+- local federation domain;
+- active talkgroup-library generation;
+- capability flags.
+
+The authenticated callsign is not repeated in the hello. It is already bound
+to the TCP session by the existing V2 authentication.
+
+`FederationHelloAck` contains:
+
+- accepted federation protocol major and minor version;
+- responding reflector's stable `REFLECTOR_ID`;
+- responding reflector's domain;
+- capability flags.
+
+A hello is rejected if the authenticated callsign, configured peer name or
+expected `REFLECTOR_ID` do not agree.
+
+### Stream Identity
+
+Every federated stream is identified by the tuple:
+
+```text
+origin_reflector_id
+talkgroup
+stream_id
+
 ## Configuration Model
 
 Federation configuration is divided between static connection configuration

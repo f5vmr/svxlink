@@ -41,6 +41,10 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/svxreflector.conf.in
   ${CMAKE_CURRENT_BINARY_DIR}/svxreflector.conf
   @ONLY
   )
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/Federation.conf.in
+  ${CMAKE_CURRENT_BINARY_DIR}/Federation.conf
+  @ONLY
+  )
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ca-hook.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/ca-hook.py
   @ONLY
@@ -50,6 +54,9 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/ca-hook.py.in
 install(TARGETS svxreflector DESTINATION ${BIN_INSTALL_DIR})
 install_if_not_exists(${CMAKE_CURRENT_BINARY_DIR}/svxreflector.conf
   ${SVX_SYSCONF_INSTALL_DIR}
+  )
+install_if_not_exists(${CMAKE_CURRENT_BINARY_DIR}/Federation.conf
+  ${SVX_SYSCONF_INSTALL_DIR}/svxreflector.d
   )
 install_if_not_exists(ca-hook.yaml ${SVX_SYSCONF_INSTALL_DIR})
 install(PROGRAMS svxreflector-status

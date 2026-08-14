@@ -1,0 +1,38 @@
+###################################################################
+#
+# Optional reflector federation
+# This file is loaded through GLOBAL/CFG_DIR in svxreflector.conf.
+# Federation is disabled unless ENABLE=1.
+#
+###################################################################
+
+[FEDERATION]
+ENABLE=0
+#DOMAIN=
+#REFLECTOR_ID=
+#CALLSIGN=
+#LIBRARY=@SVX_SYSCONF_INSTALL_DIR@/federation.json
+#PEERS=
+
+# Each name in PEERS requires a matching FEDERATION_PEER_<name>
+# section. CALLSIGN is the single local federation identity registered
+# as an authorised V2 client on each remote reflector.
+#
+# Example:
+#
+#PEERS=PEER1
+#
+#[FEDERATION_PEER_PEER1]
+#HOST=reflector.example.org
+# REFLECTOR_ID defaults to HOST when omitted.
+#REFLECTOR_ID=reflector.example.org
+#PORT=35300
+#PROTOCOL=2
+#AUTH_KEY=change-this-key
+#CONNECT=1
+
+# Each configured peer requires exactly one trusted incoming callsign.
+# The callsign must also be authenticated through [USERS] and [PASSWORDS].
+#
+#[FEDERATION_TRUST]
+#MYCALL-F1=PEER1
