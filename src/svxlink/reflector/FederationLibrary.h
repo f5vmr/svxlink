@@ -27,7 +27,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <cstddef>
 #include <cstdint>
 #include <string>
-
+#include <vector>
 
 /****************************************************************************
  *
@@ -43,6 +43,30 @@ A failed load leaves the previously accepted library metadata unchanged.
 class FederationLibrary
 {
   public:
+    struct Route
+    {
+      enum Type
+      {
+        TYPE_EXACT,
+        TYPE_RANGE,
+        TYPE_PREFIX
+      };
+
+      Type          type;
+      std::uint32_t first;
+      std::uint32_t last;
+      std::string   prefix;
+      std::string   home;
+      std::string   scope;
+      std::string   service_anchor;
+      std::string   description;
+
+      Route(void)
+        : type(TYPE_EXACT), first(0), last(0)
+      {
+      }
+    };
+
     FederationLibrary(void);
     ~FederationLibrary(void);
 
@@ -53,13 +77,24 @@ class FederationLibrary
     unsigned schema(void) const { return m_schema; }
     std::uint64_t generation(void) const { return m_generation; }
     const std::string& domain(void) const { return m_domain; }
-    std::size_t routeCount(void) const { return m_route_count; }
+
+    std::size_t routeCount(void) const
+    {
+      return m_routes.size();
+    }
+
+    const std::vector<Route>& routes(void) const
+    {
+      return m_routes;
+    }
+
+    const Route* findRoute(std::uint32_t tg) const;
 
   private:
     unsigned       m_schema;
     std::uint64_t  m_generation;
     std::string    m_domain;
-    std::size_t    m_route_count;
+    std::vector<Route>  m_routes;
 
     FederationLibrary(const FederationLibrary&);
     FederationLibrary& operator=(const FederationLibrary&);

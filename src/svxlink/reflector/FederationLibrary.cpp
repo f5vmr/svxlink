@@ -77,6 +77,7 @@ namespace {
 
   bool validateRoute(const Json::Value& route,
                      Json::Value::ArrayIndex index,
+                     FederationLibrary::Route& parsed_route,
                      std::string& error)
   {
     std::ostringstream prefix;
@@ -104,6 +105,10 @@ namespace {
                 "exact value must be a positive talkgroup number";
         return false;
       }
+
+      parsed_route.type = FederationLibrary::Route::TYPE_EXACT;
+      parsed_route.first = route["value"].asUInt();
+      parsed_route.last = parsed_route.first;
     }
     else if (type == "prefix")
     {
@@ -115,7 +120,9 @@ namespace {
                 "prefix value must be a string containing digits";
         return false;
       }
-      (void)value;  // Silence unused variable warning
+
+      parsed_route.type = FederationLibrary::Route::TYPE_PREFIX;
+      parsed_route.prefix = route["value"].asString();
     }
     else if (type == "range")
     {
@@ -147,6 +154,10 @@ namespace {
         error = prefix.str() + "range value is invalid";
         return false;
       }
+
+      parsed_route.type = FederationLibrary::Route::TYPE_RANGE;
+      parsed_route.first = first;
+      parsed_route.last = last;
     }
     else
     {
@@ -159,26 +170,34 @@ namespace {
       error = prefix.str() + "home is missing or empty";
       return false;
     }
+    parsed_route.home = route["home"].asString();
 
     if (!route["scope"].isString() || route["scope"].asString().empty())
     {
       error = prefix.str() + "scope is missing or empty";
       return false;
     }
+    parsed_route.scope = route["scope"].asString();
 
-    if (route.isMember("service_anchor") &&
-        (!route["service_anchor"].isString() ||
-         route["service_anchor"].asString().empty()))
+    if (route.isMember("service_anchor"))
     {
-      error = prefix.str() + "service_anchor must be a non-empty string";
-      return false;
+      if (!route["service_anchor"].isString() ||
+          route["service_anchor"].asString().empty())
+      {
+        error = prefix.str() + "service_anchor must be a non-empty string";
+        return false;
+      }
+      parsed_route.service_anchor = route["service_anchor"].asString();
     }
 
-    if (route.isMember("description") &&
-        !route["description"].isString())
+    if (route.isMember("description"))
     {
-      error = prefix.str() + "description must be a string";
-      return false;
+      if (!route["description"].isString())
+      {
+        error = prefix.str() + "description must be a string";
+        return false;
+      }
+      parsed_route.description = route["description"].asString();
     }
 
     return true;
@@ -193,7 +212,7 @@ namespace {
  ****************************************************************************/
 
 FederationLibrary::FederationLibrary(void)
-  : m_schema(0), m_generation(0), m_route_count(0)
+  : m_schema(0), m_generation(0)
 {
 } /* FederationLibrary::FederationLibrary */
 
@@ -202,6 +221,66 @@ FederationLibrary::~FederationLibrary(void)
 {
 } /* FederationLibrary::~FederationLibrary */
 
+const FederationLibrary::Route*
+FederationLibrary::findRoute(std::uint32_t tg) const
+{
+  // An exact talkgroup always has the highest precedence.
+  for (std::vector<Route>::const_iterator it=m_routes.begin();
+       it!=m_routes.end(); ++it)
+  {
+    if ((it->type == Route::TYPE_EXACT) && (it->first == tg))
+    {
+      return &(*it);
+    }
+  }
+
+  // Of all matching ranges, select the narrowest.
+  const Route* best_route = 0;
+  std::uint32_t best_span =
+      std::numeric_limits<std::uint32_t>::max();
+
+  for (std::vector<Route>::const_iterator it=m_routes.begin();
+       it!=m_routes.end(); ++it)
+  {
+    if ((it->type == Route::TYPE_RANGE) &&
+        (tg >= it->first) && (tg <= it->last))
+    {
+      const std::uint32_t span = it->last - it->first;
+      if ((best_route == 0) || (span < best_span))
+      {
+        best_route = &(*it);
+        best_span = span;
+      }
+    }
+  }
+
+  if (best_route != 0)
+  {
+    return best_route;
+  }
+
+  // Of all matching prefixes, select the longest.
+  std::ostringstream tg_stream;
+  tg_stream << tg;
+  const std::string tg_text(tg_stream.str());
+  std::size_t best_prefix_length = 0;
+
+  for (std::vector<Route>::const_iterator it=m_routes.begin();
+       it!=m_routes.end(); ++it)
+  {
+    if ((it->type == Route::TYPE_PREFIX) &&
+        (it->prefix.size() <= tg_text.size()) &&
+        (tg_text.compare(0, it->prefix.size(), it->prefix) == 0) &&
+        ((best_route == 0) ||
+         (it->prefix.size() > best_prefix_length)))
+    {
+      best_route = &(*it);
+      best_prefix_length = it->prefix.size();
+    }
+  }
+
+  return best_route;
+} /* FederationLibrary::findRoute */
 
 bool FederationLibrary::load(const std::string& path,
                              const std::string& expected_domain,
@@ -264,19 +343,25 @@ bool FederationLibrary::load(const std::string& path,
   }
 
   const Json::Value& routes(root["routes"]);
+  std::vector<Route> candidate_routes;
+  candidate_routes.reserve(routes.size());
+
   for (Json::Value::ArrayIndex index=0; index<routes.size(); ++index)
   {
-    if (!validateRoute(routes[index], index, error))
+    Route parsed_route;
+    if (!validateRoute(routes[index], index, parsed_route, error))
     {
       return false;
     }
+
+    candidate_routes.push_back(parsed_route);
   }
 
   // Commit metadata only after the complete candidate has passed validation.
   m_schema = root["schema"].asUInt();
   m_generation = root["generation"].asUInt64();
   m_domain = candidate_domain;
-  m_route_count = root["routes"].size();
+  m_routes.swap(candidate_routes);
 
   error.clear();
   return true;
