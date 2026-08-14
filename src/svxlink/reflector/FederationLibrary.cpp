@@ -477,6 +477,22 @@ FederationLibrary::findRoute(std::uint32_t tg) const
 } /* FederationLibrary::findRoute */
 
 
+bool FederationLibrary::hasPeerPolicy(const std::string& peer) const
+{
+  for (std::vector<PeerPolicy>::const_iterator
+           it=m_peer_policies.begin();
+       it!=m_peer_policies.end(); ++it)
+  {
+    if (it->peer == peer)
+    {
+      return true;
+    }
+  }
+
+  return false;
+} /* FederationLibrary::hasPeerPolicy */
+
+
 bool FederationLibrary::mayImport(const std::string& peer,
                                   std::uint32_t tg) const
 {

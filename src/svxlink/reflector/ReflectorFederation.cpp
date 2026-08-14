@@ -97,6 +97,25 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
     return false;
   }
 
+  for (std::vector<std::string>::const_iterator it=m_peers.begin();
+       it!=m_peers.end(); ++it)
+  {
+    if (it->empty())
+    {
+      std::cerr << "*** ERROR: FEDERATION/PEERS contains an empty peer"
+                << std::endl;
+      return false;
+    }
+
+    if (!m_library.hasPeerPolicy(*it))
+    {
+      std::cerr << "*** ERROR: Federation peer " << *it
+                << " has no entry in the library peer_policy"
+                << std::endl;
+      return false;
+    }
+  }
+
   std::cout << "Reflector federation enabled:"
             << " domain=" << m_domain
             << " reflector_id=" << m_reflector_id

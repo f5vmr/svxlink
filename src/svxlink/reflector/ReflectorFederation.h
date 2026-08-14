@@ -87,7 +87,17 @@ class ReflectorFederation
       return m_library.routeCount();
     }
 
-  private:
+    bool mayImport(const std::string& peer, std::uint32_t tg) const
+    {
+      return m_enabled && m_library.mayImport(peer, tg);
+    }
+
+    bool mayExport(const std::string& peer, std::uint32_t tg) const
+    {
+      return m_enabled && m_library.mayExport(peer, tg);
+    }
+
+    private:
     bool                      m_enabled;
     std::string               m_domain;
     std::string               m_reflector_id;

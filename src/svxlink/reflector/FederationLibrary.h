@@ -114,6 +114,7 @@ class FederationLibrary
     }
 
     const Route* findRoute(std::uint32_t tg) const;
+    bool hasPeerPolicy(const std::string& peer) const;
     bool mayImport(const std::string& peer, std::uint32_t tg) const;
     bool mayExport(const std::string& peer, std::uint32_t tg) const;
 
