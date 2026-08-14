@@ -323,6 +323,20 @@ bool FederationLibrary::load(const std::string& path,
     return false;
   }
 
+  const std::uint64_t candidate_generation =
+      root["generation"].asUInt64();
+
+  if ((m_generation != 0) && (candidate_generation <= m_generation))
+  {
+    std::ostringstream message;
+    message << "Federation library generation "
+            << candidate_generation
+            << " is not newer than active generation "
+            << m_generation;
+    error = message.str();
+    return false;
+  }
+
   if (!root["domain"].isString() || root["domain"].asString().empty())
   {
     error = "Federation library domain is missing or empty";
@@ -359,7 +373,7 @@ bool FederationLibrary::load(const std::string& path,
 
   // Commit metadata only after the complete candidate has passed validation.
   m_schema = root["schema"].asUInt();
-  m_generation = root["generation"].asUInt64();
+  m_generation = candidate_generation;
   m_domain = candidate_domain;
   m_routes.swap(candidate_routes);
 
