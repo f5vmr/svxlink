@@ -129,3 +129,185 @@ Activity on one federated talkgroup must not:
 
 Talker state, stream identity, timers and routing must therefore be maintained
 independently for every talkgroup.
+
+## Configuration Model
+
+Federation configuration is divided between static connection configuration
+and a hot-reloadable talkgroup library.
+
+### Static Configuration
+
+Static configuration remains in `svxreflector.conf`. It contains local
+identity, peer endpoints and credentials.
+
+```ini
+[FEDERATION]
+ENABLE=0
+DOMAIN=UK-WIDE
+REFLECTOR_ID=uk-wide.example.org
+CALLSIGN=MYCALL-FU
+LIBRARY=/etc/svxlink/federation.json
+PEERS=YORKSHIRENET,NORTH-AMERICA,AUSTRALIA-NZ
+
+[FEDERATION_PEER_YORKSHIRENET]
+REFLECTOR_ID=yorkshirenet.example.org
+HOST=reflector.example.org
+PORT=5300
+PROTOCOL=2
+AUTH_KEY=change-this-pair-key
+CONNECT=1
+
+[FEDERATION_PEER_NORTH_AMERICA]
+REFLECTOR_ID=north-america.example.org
+HOST=na-reflector.example.org
+PORT=5300
+PROTOCOL=2
+AUTH_KEY=change-this-pair-key
+CONNECT=1
+
+[FEDERATION_PEER_AUSTRALIA_NZ]
+REFLECTOR_ID=australia-nz.example.org
+HOST=au-reflector.example.org
+PORT=5300
+PROTOCOL=2
+AUTH_KEY=change-this-pair-key
+CONNECT=1
+
+[FEDERATION_TRUST]
+MYCALL-FY=YORKSHIRENET
+MYCALL-FN=NORTH-AMERICA
+MYCALL-FA=AUSTRALIA-NZ
+```
+
+`REFLECTOR_ID` must be stable and unique throughout the federation. It is not
+a user callsign and must not change when a server address changes.
+
+Static configuration and credentials are not advertised to peers.
+
+### Hot-Reloadable Talkgroup Library
+
+The talkgroup library contains no passwords or private keys. It may therefore
+be managed by a local administration tool and selectively advertised to
+trusted peers.
+
+Initial JSON structure:
+
+```json
+{
+  "schema": 1,
+  "generation": 1,
+  "domain": "UK-WIDE",
+  "routes": [
+    {
+      "type": "exact",
+      "value": 235,
+      "home": "UK-WIDE",
+      "scope": "family",
+      "description": "UK-wide"
+    },
+    {
+      "type": "prefix",
+      "value": "234",
+      "home": "YORKSHIRENET",
+      "scope": "family",
+      "description": "YorkshireNet MCC routes"
+    },
+    {
+      "type": "exact",
+      "value": 9050,
+      "home": "UK-WIDE",
+      "scope": "family",
+      "service_anchor": "UK-WIDE",
+      "description": "Example AllStar bridge"
+    }
+  ],
+  "peer_policy": {
+    "YORKSHIRENET": {
+      "import": ["235", "234*"],
+      "export": ["235", "9050"]
+    },
+    "NORTH-AMERICA": {
+      "import": ["235", "310*", "311*"],
+      "export": ["235", "9050"]
+    }
+  }
+}
+```
+
+### Route Precedence
+
+When more than one route matches a talkgroup, precedence is:
+
+1. Exact talkgroup entry.
+2. Most specific configured range.
+3. Longest matching MCC or prefix.
+4. No match: the talkgroup remains local.
+
+Exact entries allow AllStar node numbers and other exceptions to override MCC
+interpretation.
+
+### Hot Reload
+
+A library update must:
+
+1. Be read into a temporary in-memory model.
+2. Pass complete schema and policy validation.
+3. Receive a generation number greater than the active generation.
+4. Replace the active model atomically.
+5. Retain the preceding valid generation for rollback.
+6. Advertise only locally authorised route information to peers.
+
+An invalid update must leave the active routing table unchanged.
+
+### Local Authority
+
+Peer advertisements are informational. A received route becomes effective
+only when permitted by local import policy.
+
+No peer may change another reflector's local policy, credentials or ownership
+rules.
+## Federated Stream Routing
+
+Every federated talkgroup has one home reflector. MCC and exact-route rules
+determine that home.
+
+The home reflector is authoritative for talker arbitration on that talkgroup.
+
+A remote reflector wishing to originate on the talkgroup sends a talker
+request and stream towards the home reflector. Once accepted, the home
+reflector distributes the stream directly to participating peers.
+
+A stream received from its home reflector is delivered locally but is not
+automatically forwarded to another peer.
+
+Each federation stream must identify:
+
+- talkgroup number;
+- home reflector ID;
+- originating reflector ID;
+- unique stream ID;
+- audio sequence number;
+- stream state: request, start, audio, flush or stop.
+
+A peer connection must multiplex multiple talkgroups. It must not inherit the
+ordinary V2 client restriction of one selected talkgroup per connection.
+
+The initial transport uses V2 shared-key authentication. Federation control and
+audio messages extend the payload sufficiently to identify each independent
+talkgroup and stream.
+
+## Federation Identities
+
+Each reflector module has one stable federation callsign. That identity may
+connect to several different reflectors because callsign uniqueness is local
+to each receiving SVXReflector.
+
+Each reflector authorises the federation identities of the other three family
+members but does not authorise its own identity as an incoming peer.
+
+Each reflector pair uses a distinct authentication key. Authentication keys
+are never included in the hot-shared talkgroup library.
+
+Only one full-duplex connection is active for each reflector pair. Connection
+ownership is configured or determined consistently so that both ends do not
+create duplicate sessions.

@@ -34,6 +34,11 @@ CERT_CA_HOOK=@SVX_SHARE_INSTALL_DIR@/ca-hook.py
 
 [FEDERATION]
 #ENABLE=0
+#DOMAIN=
+#REFLECTOR_ID=
+#CALLSIGN=
+#LIBRARY=/etc/svxlink/federation.json
+#PEERS=
 
 [ROOT_CA]
 #KEYFILE=svxreflector_root_ca.key
