@@ -26,6 +26,7 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 
 /****************************************************************************
@@ -352,5 +353,69 @@ class MsgFederationStreamStop : public ReflectorMsgBase<204>
     std::uint32_t m_tg;
     std::uint64_t m_stream_id;
 }; /* MsgFederationStreamStop */
+
+/****************************************************************************
+ *
+ * UDP message definitions
+ *
+ ****************************************************************************/
+
+/**
+@brief  Carry one Opus frame for one federated talkgroup stream
+*/
+class MsgUdpFederationAudio : public ReflectorUdpMsgBase<201>
+{
+  public:
+    MsgUdpFederationAudio(void)
+      : m_tg(0), m_stream_id(0), m_sequence(0)
+    {
+    }
+
+    MsgUdpFederationAudio(
+        const std::string& origin_reflector_id,
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        std::uint32_t sequence,
+        const std::vector<std::uint8_t>& audio_data)
+      : m_origin_reflector_id(origin_reflector_id),
+        m_tg(tg),
+        m_stream_id(stream_id),
+        m_sequence(sequence),
+        m_audio_data(audio_data)
+    {
+    }
+
+    const std::string& originReflectorId(void) const
+    {
+      return m_origin_reflector_id;
+    }
+
+    std::uint32_t tg(void) const { return m_tg; }
+    std::uint64_t streamId(void) const { return m_stream_id; }
+    std::uint32_t sequence(void) const { return m_sequence; }
+
+    std::vector<std::uint8_t>& audioData(void)
+    {
+      return m_audio_data;
+    }
+
+    const std::vector<std::uint8_t>& audioData(void) const
+    {
+      return m_audio_data;
+    }
+
+    ASYNC_MSG_MEMBERS(m_origin_reflector_id,
+                      m_tg,
+                      m_stream_id,
+                      m_sequence,
+                      m_audio_data)
+
+  private:
+    std::string               m_origin_reflector_id;
+    std::uint32_t             m_tg;
+    std::uint64_t             m_stream_id;
+    std::uint32_t             m_sequence;
+    std::vector<std::uint8_t> m_audio_data;
+}; /* MsgUdpFederationAudio */
 
 #endif /* FEDERATION_MSG_INCLUDED */
