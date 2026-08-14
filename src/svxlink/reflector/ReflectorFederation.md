@@ -150,27 +150,27 @@ LIBRARY=/etc/svxlink/federation.json
 PEERS=YORKSHIRENET,NORTH-AMERICA,AUSTRALIA-NZ
 
 [FEDERATION_PEER_YORKSHIRENET]
+HOST=yorkshirenet.example.org
 REFLECTOR_ID=yorkshirenet.example.org
-HOST=reflector.example.org
-PORT=5300
+PORT=35300
 PROTOCOL=2
-AUTH_KEY=change-this-pair-key
+AUTH_KEY=change-this-uk-yorkshire-key
 CONNECT=1
 
-[FEDERATION_PEER_NORTH_AMERICA]
+[FEDERATION_PEER_NORTH-AMERICA]
+HOST=north-america.example.org
 REFLECTOR_ID=north-america.example.org
-HOST=na-reflector.example.org
-PORT=5300
+PORT=35300
 PROTOCOL=2
-AUTH_KEY=change-this-pair-key
+AUTH_KEY=change-this-uk-na-key
 CONNECT=1
 
-[FEDERATION_PEER_AUSTRALIA_NZ]
+[FEDERATION_PEER_AUSTRALIA-NZ]
+HOST=australia-nz.example.org
 REFLECTOR_ID=australia-nz.example.org
-HOST=au-reflector.example.org
-PORT=5300
+PORT=35300
 PROTOCOL=2
-AUTH_KEY=change-this-pair-key
+AUTH_KEY=change-this-uk-australia-key
 CONNECT=1
 
 [FEDERATION_TRUST]
@@ -178,6 +178,17 @@ MYCALL-FY=YORKSHIRENET
 MYCALL-FN=NORTH-AMERICA
 MYCALL-FA=AUSTRALIA-NZ
 ```
+
+Each peer section name must exactly match its entry in `PEERS`. Hyphens and
+case are significant.
+
+A peer `REFLECTOR_ID` defaults to its `HOST` when omitted. For production
+federation it should be set explicitly so that the network endpoint can
+change without changing the peer's stable federation identity.
+
+The local federation `CALLSIGN` is authenticated by each remote reflector
+using the existing V2 `[USERS]` and `[PASSWORDS]` mechanism. `FEDERATION_TRUST`
+maps authenticated remote federation callsigns to their expected peer names.
 
 `REFLECTOR_ID` must be stable and unique throughout the federation. It is not
 a user callsign and must not change when a server address changes.

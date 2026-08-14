@@ -39,6 +39,22 @@ CERT_CA_HOOK=@SVX_SHARE_INSTALL_DIR@/ca-hook.py
 #CALLSIGN=
 #LIBRARY=/etc/svxlink/federation.json
 #PEERS=
+# Each name in PEERS requires a matching FEDERATION_PEER_<name>
+# section. CALLSIGN is the single local federation identity registered
+# as an authorised V2 client on each remote reflector.
+#
+# Example:
+#
+#PEERS=PEER1
+#
+#[FEDERATION_PEER_PEER1]
+#HOST=reflector.example.org
+# REFLECTOR_ID defaults to HOST when omitted.
+#REFLECTOR_ID=reflector.example.org
+#PORT=35300
+#PROTOCOL=2
+#AUTH_KEY=change-this-key
+#CONNECT=1
 
 [ROOT_CA]
 #KEYFILE=svxreflector_root_ca.key

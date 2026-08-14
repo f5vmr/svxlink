@@ -97,6 +97,8 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
     return false;
   }
 
+  std::vector<PeerConfig> candidate_peer_configs;
+
   for (std::vector<std::string>::const_iterator it=m_peers.begin();
        it!=m_peers.end(); ++it)
   {
@@ -114,7 +116,67 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
                 << std::endl;
       return false;
     }
+
+    const std::string section("FEDERATION_PEER_" + *it);
+    PeerConfig peer;
+    peer.name = *it;
+
+    if (!cfg.getValue(section, "HOST", peer.host) ||
+        peer.host.empty())
+    {
+      std::cerr << "*** ERROR: " << section
+                << "/HOST is missing or empty"
+                << std::endl;
+      return false;
+    }
+
+    // The stable federation identity defaults to the current endpoint.
+    peer.reflector_id = peer.host;
+    cfg.getValue(section, "REFLECTOR_ID", peer.reflector_id);
+
+    if (peer.reflector_id.empty())
+    {
+      std::cerr << "*** ERROR: " << section
+                << "/REFLECTOR_ID must not be empty"
+                << std::endl;
+      return false;
+    }
+
+    unsigned port = peer.port;
+    cfg.getValue(section, "PORT", port);
+
+    if ((port == 0) || (port > 65535))
+    {
+      std::cerr << "*** ERROR: " << section
+                << "/PORT must be between 1 and 65535"
+                << std::endl;
+      return false;
+    }
+    peer.port = static_cast<std::uint16_t>(port);
+
+    cfg.getValue(section, "PROTOCOL", peer.protocol);
+    if (peer.protocol != 2)
+    {
+      std::cerr << "*** ERROR: " << section
+                << "/PROTOCOL must currently be 2"
+                << std::endl;
+      return false;
+    }
+
+    if (!cfg.getValue(section, "AUTH_KEY", peer.auth_key) ||
+        peer.auth_key.empty())
+    {
+      std::cerr << "*** ERROR: " << section
+                << "/AUTH_KEY is missing or empty"
+                << std::endl;
+      return false;
+    }
+
+    cfg.getValue(section, "CONNECT", peer.connect);
+    candidate_peer_configs.push_back(peer);
   }
+
+  m_peer_configs.swap(candidate_peer_configs);
 
   std::cout << "Reflector federation enabled:"
             << " domain=" << m_domain
@@ -125,6 +187,19 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
             << " generation=" << m_library.generation()
             << " routes=" << m_library.routeCount()
             << std::endl;
+  for (std::vector<PeerConfig>::const_iterator
+          it=m_peer_configs.begin();
+      it!=m_peer_configs.end(); ++it)
+  {
+    std::cout << "  Federation peer:"
+              << " name=" << it->name
+              << " reflector_id=" << it->reflector_id
+              << " host=" << it->host
+              << " port=" << it->port
+              << " protocol=" << it->protocol
+              << " connect=" << (it->connect ? "yes" : "no")
+              << std::endl;
+  }
 
   return true;
 } /* ReflectorFederation::initialize */

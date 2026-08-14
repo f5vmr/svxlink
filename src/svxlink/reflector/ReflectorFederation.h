@@ -61,6 +61,22 @@ federation state. The initial implementation is deliberately inert.
 class ReflectorFederation
 {
   public:
+    struct PeerConfig
+    {
+      std::string   name;
+      std::string   reflector_id;
+      std::string   host;
+      std::uint16_t port;
+      unsigned      protocol;
+      std::string   auth_key;
+      bool          connect;
+
+      PeerConfig(void)
+        : port(5300), protocol(2), connect(true)
+      {
+      }
+    };
+
     ReflectorFederation(void);
     ~ReflectorFederation(void);
 
@@ -75,6 +91,11 @@ class ReflectorFederation
     const std::vector<std::string>& peers(void) const
     {
       return m_peers;
+    }
+
+    const std::vector<PeerConfig>& peerConfigs(void) const
+    {
+      return m_peer_configs;
     }
 
     std::uint64_t libraryGeneration(void) const
@@ -97,13 +118,14 @@ class ReflectorFederation
       return m_enabled && m_library.mayExport(peer, tg);
     }
 
-    private:
+  private:
     bool                      m_enabled;
     std::string               m_domain;
     std::string               m_reflector_id;
     std::string               m_callsign;
     std::string               m_library_path;
     std::vector<std::string>  m_peers;
+    std::vector<PeerConfig>   m_peer_configs;
     FederationLibrary         m_library;
 
     ReflectorFederation(const ReflectorFederation&);
