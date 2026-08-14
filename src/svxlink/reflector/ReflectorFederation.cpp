@@ -20,6 +20,7 @@ the Free Software Foundation; either version 2 of the License, or
  ****************************************************************************/ 
 
 #include <iostream>
+#include <list>
 
 /****************************************************************************
  *
@@ -46,6 +47,41 @@ ReflectorFederation::ReflectorFederation(void)
 ReflectorFederation::~ReflectorFederation(void)
 {
 } /* ReflectorFederation::~ReflectorFederation */
+
+const ReflectorFederation::TrustEntry*
+ReflectorFederation::findTrustByCallsign(
+    const std::string& callsign) const
+{
+  for (std::vector<TrustEntry>::const_iterator
+           it=m_trust_entries.begin();
+       it!=m_trust_entries.end(); ++it)
+  {
+    if (it->callsign == callsign)
+    {
+      return &(*it);
+    }
+  }
+
+  return 0;
+} /* ReflectorFederation::findTrustByCallsign */
+
+
+const ReflectorFederation::TrustEntry*
+ReflectorFederation::findTrustByPeer(
+    const std::string& peer) const
+{
+  for (std::vector<TrustEntry>::const_iterator
+           it=m_trust_entries.begin();
+       it!=m_trust_entries.end(); ++it)
+  {
+    if (it->peer == peer)
+    {
+      return &(*it);
+    }
+  }
+
+  return 0;
+} /* ReflectorFederation::findTrustByPeer */
 
 
 bool ReflectorFederation::initialize(Async::Config& cfg)
@@ -175,8 +211,126 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
     cfg.getValue(section, "CONNECT", peer.connect);
     candidate_peer_configs.push_back(peer);
   }
+  std::vector<TrustEntry> candidate_trust_entries;
+  const std::list<std::string> trust_callsigns =
+      cfg.listSection("FEDERATION_TRUST");
+
+  for (std::list<std::string>::const_iterator
+           it=trust_callsigns.begin();
+       it!=trust_callsigns.end(); ++it)
+  {
+    TrustEntry trust;
+    trust.callsign = *it;
+
+    if (trust.callsign.empty())
+    {
+      std::cerr << "*** ERROR: FEDERATION_TRUST contains an empty callsign"
+                << std::endl;
+      return false;
+    }
+
+    for (std::string::const_iterator ch=trust.callsign.begin();
+         ch!=trust.callsign.end(); ++ch)
+    {
+      if ((*ch >= 'a') && (*ch <= 'z'))
+      {
+        std::cerr << "*** ERROR: Federation trust callsign "
+                  << trust.callsign
+                  << " must use upper case"
+                  << std::endl;
+        return false;
+      }
+    }
+
+    if (trust.callsign == m_callsign)
+    {
+      std::cerr << "*** ERROR: Federation trust callsign "
+                << trust.callsign
+                << " is the local federation callsign"
+                << std::endl;
+      return false;
+    }
+
+    if (!cfg.getValue("FEDERATION_TRUST",
+                      trust.callsign,
+                      trust.peer) ||
+        trust.peer.empty())
+    {
+      std::cerr << "*** ERROR: FEDERATION_TRUST/"
+                << trust.callsign
+                << " is missing or empty"
+                << std::endl;
+      return false;
+    }
+
+    bool peer_exists = false;
+    for (std::vector<PeerConfig>::const_iterator
+             peer_it=candidate_peer_configs.begin();
+         peer_it!=candidate_peer_configs.end(); ++peer_it)
+    {
+      if (peer_it->name == trust.peer)
+      {
+        peer_exists = true;
+        break;
+      }
+    }
+
+    if (!peer_exists)
+    {
+      std::cerr << "*** ERROR: Federation trust callsign "
+                << trust.callsign
+                << " refers to unknown peer "
+                << trust.peer
+                << std::endl;
+      return false;
+    }
+
+    for (std::vector<TrustEntry>::const_iterator
+             trust_it=candidate_trust_entries.begin();
+         trust_it!=candidate_trust_entries.end(); ++trust_it)
+    {
+      if (trust_it->peer == trust.peer)
+      {
+        std::cerr << "*** ERROR: Federation peer "
+                  << trust.peer
+                  << " has more than one trusted callsign"
+                  << std::endl;
+        return false;
+      }
+    }
+
+    candidate_trust_entries.push_back(trust);
+  }
+
+  for (std::vector<PeerConfig>::const_iterator
+           peer_it=candidate_peer_configs.begin();
+       peer_it!=candidate_peer_configs.end(); ++peer_it)
+  {
+    bool trust_exists = false;
+
+    for (std::vector<TrustEntry>::const_iterator
+             trust_it=candidate_trust_entries.begin();
+         trust_it!=candidate_trust_entries.end(); ++trust_it)
+    {
+      if (trust_it->peer == peer_it->name)
+      {
+        trust_exists = true;
+        break;
+      }
+    }
+
+    if (!trust_exists)
+    {
+      std::cerr << "*** ERROR: Federation peer "
+                << peer_it->name
+                << " has no FEDERATION_TRUST callsign"
+                << std::endl;
+      return false;
+    }
+  }
 
   m_peer_configs.swap(candidate_peer_configs);
+  m_trust_entries.swap(candidate_trust_entries);
 
   std::cout << "Reflector federation enabled:"
             << " domain=" << m_domain
@@ -198,6 +352,16 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
               << " port=" << it->port
               << " protocol=" << it->protocol
               << " connect=" << (it->connect ? "yes" : "no")
+              << std::endl;
+  }
+
+  for (std::vector<TrustEntry>::const_iterator
+           it=m_trust_entries.begin();
+       it!=m_trust_entries.end(); ++it)
+  {
+    std::cout << "  Federation trust:"
+              << " callsign=" << it->callsign
+              << " peer=" << it->peer
               << std::endl;
   }
 

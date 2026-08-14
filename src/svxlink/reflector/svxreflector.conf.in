@@ -56,6 +56,12 @@ CERT_CA_HOOK=@SVX_SHARE_INSTALL_DIR@/ca-hook.py
 #AUTH_KEY=change-this-key
 #CONNECT=1
 
+# Each configured peer requires exactly one trusted incoming callsign.
+# The callsign must also be authenticated through [USERS] and [PASSWORDS].
+#
+#[FEDERATION_TRUST]
+#MYCALL-F1=PEER1
+
 [ROOT_CA]
 #KEYFILE=svxreflector_root_ca.key
 #CRTFILE=svxreflector_root_ca.crt

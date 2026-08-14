@@ -77,6 +77,12 @@ class ReflectorFederation
       }
     };
 
+    struct TrustEntry
+    {
+      std::string callsign;
+      std::string peer;
+    };
+
     ReflectorFederation(void);
     ~ReflectorFederation(void);
 
@@ -97,6 +103,17 @@ class ReflectorFederation
     {
       return m_peer_configs;
     }
+
+    const std::vector<TrustEntry>& trustEntries(void) const
+    {
+      return m_trust_entries;
+    }
+
+    const TrustEntry* findTrustByCallsign(
+        const std::string& callsign) const;
+
+    const TrustEntry* findTrustByPeer(
+        const std::string& peer) const;
 
     std::uint64_t libraryGeneration(void) const
     {
@@ -126,6 +143,7 @@ class ReflectorFederation
     std::string               m_library_path;
     std::vector<std::string>  m_peers;
     std::vector<PeerConfig>   m_peer_configs;
+    std::vector<TrustEntry>   m_trust_entries;
     FederationLibrary         m_library;
 
     ReflectorFederation(const ReflectorFederation&);
