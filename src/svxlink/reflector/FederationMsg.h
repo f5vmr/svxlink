@@ -50,7 +50,15 @@ namespace FederationProtocol
     VERSION_MAJOR = 1,
     VERSION_MINOR = 0,
 
-    CAP_MULTIPLEXED_OPUS = 1U << 0
+        CAP_MULTIPLEXED_OPUS = 1U << 0,
+
+    STREAM_ACCEPTED              = 0,
+    STREAM_REJECT_POLICY         = 1,
+    STREAM_REJECT_INVALID_ORIGIN = 2,
+    STREAM_REJECT_DUPLICATE      = 3,
+    STREAM_REJECT_CODEC          = 4,
+    STREAM_REJECT_LOCAL_BUSY     = 5,
+    STREAM_REJECT_PROTOCOL       = 6
   };
 }
 
@@ -188,5 +196,161 @@ class MsgFederationHelloAck : public ReflectorMsgBase<201>
     std::uint32_t m_capabilities;
 }; /* MsgFederationHelloAck */
 
+/**
+@brief  Request permission to begin one federated talkgroup stream
+*/
+class MsgFederationStreamStart : public ReflectorMsgBase<202>
+{
+  public:
+    MsgFederationStreamStart(void)
+      : m_tg(0), m_stream_id(0)
+    {
+    }
+
+    MsgFederationStreamStart(const std::string& origin_reflector_id,
+                             std::uint32_t tg,
+                             std::uint64_t stream_id,
+                             const std::string& source_callsign,
+                             const std::string& codec)
+      : m_origin_reflector_id(origin_reflector_id),
+        m_tg(tg),
+        m_stream_id(stream_id),
+        m_source_callsign(source_callsign),
+        m_codec(codec)
+    {
+    }
+
+    const std::string& originReflectorId(void) const
+    {
+      return m_origin_reflector_id;
+    }
+
+    std::uint32_t tg(void) const { return m_tg; }
+    std::uint64_t streamId(void) const { return m_stream_id; }
+
+    const std::string& sourceCallsign(void) const
+    {
+      return m_source_callsign;
+    }
+
+    const std::string& codec(void) const
+    {
+      return m_codec;
+    }
+
+    ASYNC_MSG_MEMBERS(m_origin_reflector_id,
+                      m_tg,
+                      m_stream_id,
+                      m_source_callsign,
+                      m_codec)
+
+  private:
+    std::string   m_origin_reflector_id;
+    std::uint32_t m_tg;
+    std::uint64_t m_stream_id;
+    std::string   m_source_callsign;
+    std::string   m_codec;
+}; /* MsgFederationStreamStart */
+
+
+/**
+@brief  Accept or reject a federated talkgroup stream
+*/
+class MsgFederationStreamResult : public ReflectorMsgBase<203>
+{
+  public:
+    MsgFederationStreamResult(void)
+      : m_tg(0),
+        m_stream_id(0),
+        m_accepted(0),
+        m_reason(FederationProtocol::STREAM_REJECT_PROTOCOL)
+    {
+    }
+
+    MsgFederationStreamResult(
+        const std::string& origin_reflector_id,
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        bool accepted,
+        std::uint16_t reason,
+        const std::string& detail="")
+      : m_origin_reflector_id(origin_reflector_id),
+        m_tg(tg),
+        m_stream_id(stream_id),
+        m_accepted(accepted ? 1 : 0),
+        m_reason(reason),
+        m_detail(detail)
+    {
+    }
+
+    const std::string& originReflectorId(void) const
+    {
+      return m_origin_reflector_id;
+    }
+
+    std::uint32_t tg(void) const { return m_tg; }
+    std::uint64_t streamId(void) const { return m_stream_id; }
+    bool accepted(void) const { return m_accepted != 0; }
+    std::uint16_t reason(void) const { return m_reason; }
+
+    const std::string& detail(void) const
+    {
+      return m_detail;
+    }
+
+    ASYNC_MSG_MEMBERS(m_origin_reflector_id,
+                      m_tg,
+                      m_stream_id,
+                      m_accepted,
+                      m_reason,
+                      m_detail)
+
+  private:
+    std::string   m_origin_reflector_id;
+    std::uint32_t m_tg;
+    std::uint64_t m_stream_id;
+    std::uint8_t  m_accepted;
+    std::uint16_t m_reason;
+    std::string   m_detail;
+}; /* MsgFederationStreamResult */
+
+
+/**
+@brief  Close one federated talkgroup stream
+*/
+class MsgFederationStreamStop : public ReflectorMsgBase<204>
+{
+  public:
+    MsgFederationStreamStop(void)
+      : m_tg(0), m_stream_id(0)
+    {
+    }
+
+    MsgFederationStreamStop(const std::string& origin_reflector_id,
+                            std::uint32_t tg,
+                            std::uint64_t stream_id)
+      : m_origin_reflector_id(origin_reflector_id),
+        m_tg(tg),
+        m_stream_id(stream_id)
+    {
+    }
+
+    const std::string& originReflectorId(void) const
+    {
+      return m_origin_reflector_id;
+    }
+
+    std::uint32_t tg(void) const { return m_tg; }
+    std::uint64_t streamId(void) const { return m_stream_id; }
+
+    ASYNC_MSG_MEMBERS(m_origin_reflector_id,
+                      m_tg,
+                      m_stream_id)
+
+  private:
+    std::string   m_origin_reflector_id;
+    std::uint32_t m_tg;
+    std::uint64_t m_stream_id;
+}; /* MsgFederationStreamStop */
 
 #endif /* FEDERATION_MSG_INCLUDED */
