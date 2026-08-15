@@ -25,7 +25,8 @@ set(LIBS asynccpp asyncaudio asynccore svxmisc ${LIBS})
 # Build the executable
 add_executable(svxreflector
   svxreflector.cpp 
-  FederationLibrary.cpp 
+  FederationLibrary.cpp
+  FederationPeerConnection.cpp
   Reflector.cpp 
   ReflectorClient.cpp 
   ReflectorFederation.cpp 

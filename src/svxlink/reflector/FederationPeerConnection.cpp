@@ -1,0 +1,615 @@
+/**
+@file   FederationPeerConnection.cpp
+@brief  Outgoing V2 connection to a federated SVXReflector peer
+@author Chris Jackson / G4NAB
+@date   2026-08-15
+
+\verbatim
+Copyright (C) 2026 Chris Jackson / G4NAB
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+\endverbatim
+*/
+
+
+/****************************************************************************
+ *
+ * System Includes
+ *
+ ****************************************************************************/
+
+#include <algorithm>
+#include <iostream>
+#include <sstream>
+
+
+/****************************************************************************
+ *
+ * Local Includes
+ *
+ ****************************************************************************/
+
+#include "FederationPeerConnection.h"
+#include "FederationMsg.h"
+#include "ReflectorMsg.h"
+
+
+/****************************************************************************
+ *
+ * Namespaces to use
+ *
+ ****************************************************************************/
+
+using namespace Async;
+using namespace sigc;
+
+
+/****************************************************************************
+ *
+ * Local constants
+ *
+ ****************************************************************************/
+
+namespace
+{
+  const unsigned RECONNECT_INTERVAL_MS = 60000;
+  const unsigned TCP_HEARTBEAT_TX_RESET = 10;
+  const unsigned TCP_HEARTBEAT_RX_RESET = 15;
+}
+
+
+/****************************************************************************
+ *
+ * Public member functions
+ *
+ ****************************************************************************/
+
+FederationPeerConnection::FederationPeerConnection(
+    const std::string& peer,
+    const std::string& remote_reflector_id,
+    const std::string& local_reflector_id,
+    const std::string& local_domain,
+    std::uint64_t library_generation,
+    const std::string& callsign,
+    const std::string& host,
+    std::uint16_t port,
+    const std::string& auth_key)
+  : m_peer(peer),
+    m_remote_reflector_id(remote_reflector_id),
+    m_local_reflector_id(local_reflector_id),
+    m_local_domain(local_domain),
+    m_library_generation(library_generation),
+    m_callsign(callsign),
+    m_host(host),
+    m_port(port),
+    m_auth_key(auth_key),
+    m_reconnect_timer(
+        RECONNECT_INTERVAL_MS,
+        Timer::TYPE_ONESHOT,
+        false),
+    m_heartbeat_timer(
+        1000,
+        Timer::TYPE_PERIODIC,
+        false),
+    m_state(STATE_DISCONNECTED),
+    m_started(false),
+    m_client_id(0),
+    m_next_udp_tx_sequence(0),
+    m_tcp_heartbeat_tx_count(0),
+    m_tcp_heartbeat_rx_count(0)
+{
+  m_con.addStaticSRVRecord(
+      0,
+      100,
+      100,
+      m_port,
+      m_host);
+
+  m_con.connected.connect(
+      mem_fun(*this, &FederationPeerConnection::onConnected));
+
+  m_con.disconnected.connect(
+      mem_fun(*this, &FederationPeerConnection::onDisconnected));
+
+  m_con.frameReceived.connect(
+      mem_fun(*this, &FederationPeerConnection::onFrameReceived));
+
+  m_reconnect_timer.expired.connect(
+      hide(mem_fun(*this, &FederationPeerConnection::reconnect)));
+
+  m_heartbeat_timer.expired.connect(
+      mem_fun(*this, &FederationPeerConnection::heartbeatTick));
+
+  m_con.setMaxFrameSize(ReflectorMsg::MAX_PREAUTH_FRAME_SIZE);
+} /* FederationPeerConnection::FederationPeerConnection */
+
+
+FederationPeerConnection::~FederationPeerConnection(void)
+{
+  stop();
+} /* FederationPeerConnection::~FederationPeerConnection */
+
+
+void FederationPeerConnection::start(void)
+{
+  if (m_started)
+  {
+    return;
+  }
+
+  m_started = true;
+  connect();
+} /* FederationPeerConnection::start */
+
+
+void FederationPeerConnection::stop(void)
+{
+  m_started = false;
+  m_reconnect_timer.setEnable(false);
+  m_heartbeat_timer.setEnable(false);
+  disconnect();
+} /* FederationPeerConnection::stop */
+
+
+/****************************************************************************
+ *
+ * Private member functions
+ *
+ ****************************************************************************/
+
+void FederationPeerConnection::connect(void)
+{
+  if (!m_started || m_con.isConnected())
+  {
+    return;
+  }
+
+  m_reconnect_timer.setEnable(false);
+
+  std::cout << "Federation peer " << m_peer
+            << ": Connecting to "
+            << m_host << ":" << m_port
+            << std::endl;
+
+  m_con.connect();
+} /* FederationPeerConnection::connect */
+
+
+void FederationPeerConnection::disconnect(void)
+{
+  const bool was_connected = m_con.isConnected();
+  m_con.disconnect();
+
+  if (was_connected)
+  {
+    onDisconnected(
+        &m_con,
+        TcpConnection::DR_ORDERED_DISCONNECT);
+  }
+
+  m_state = STATE_DISCONNECTED;
+} /* FederationPeerConnection::disconnect */
+
+
+void FederationPeerConnection::reconnect(void)
+{
+  if (!m_started)
+  {
+    return;
+  }
+
+  disconnect();
+  connect();
+} /* FederationPeerConnection::reconnect */
+
+
+void FederationPeerConnection::onConnected(void)
+{
+  std::cout << "Federation peer " << m_peer
+            << ": TCP connection established to "
+            << m_con.remoteHost() << ":"
+            << m_con.remotePort()
+            << std::endl;
+
+  m_state = STATE_EXPECT_AUTH_CHALLENGE;
+  m_client_id = 0;
+  m_next_udp_tx_sequence = 0;
+  m_tcp_heartbeat_tx_count = TCP_HEARTBEAT_TX_RESET;
+  m_tcp_heartbeat_rx_count = TCP_HEARTBEAT_RX_RESET;
+
+  m_con.setMaxFrameSize(ReflectorMsg::MAX_PREAUTH_FRAME_SIZE);
+  m_heartbeat_timer.setEnable(true);
+
+  sendMsg(MsgProtoVer(2, 0));
+} /* FederationPeerConnection::onConnected */
+
+
+void FederationPeerConnection::onDisconnected(
+    Async::TcpConnection* con,
+    Async::TcpConnection::DisconnectReason reason)
+{
+  (void)con;
+
+  std::cout << "Federation peer " << m_peer
+            << ": Disconnected: "
+            << TcpConnection::disconnectReasonStr(reason)
+            << std::endl;
+
+  m_heartbeat_timer.setEnable(false);
+  m_state = STATE_DISCONNECTED;
+  m_client_id = 0;
+  m_next_udp_tx_sequence = 0;
+
+  if (m_started)
+  {
+    m_reconnect_timer.setEnable(true);
+  }
+} /* FederationPeerConnection::onDisconnected */
+
+
+void FederationPeerConnection::onFrameReceived(
+    Async::FramedTcpConnection* con,
+    std::vector<std::uint8_t>& data)
+{
+  (void)con;
+
+  if (data.empty())
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer << ": Empty TCP frame received"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  std::stringstream stream;
+  stream.write(
+      reinterpret_cast<const char*>(&data.front()),
+      data.size());
+
+  ReflectorMsg header;
+  if (!header.unpack(stream))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Could not unpack TCP message header"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if ((header.type() >= 100) &&
+      (m_state < STATE_EXPECT_FEDERATION_ACK))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": User message received before authentication"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  m_tcp_heartbeat_rx_count = TCP_HEARTBEAT_RX_RESET;
+
+  switch (header.type())
+  {
+    case MsgHeartbeat::TYPE:
+      break;
+
+    case MsgError::TYPE:
+    {
+      MsgError msg;
+      if (!msg.unpack(stream))
+      {
+        std::cerr << "*** ERROR: Federation peer "
+                  << m_peer
+                  << ": Could not unpack MsgError"
+                  << std::endl;
+      }
+      else
+      {
+        std::cerr << "*** ERROR: Federation peer "
+                  << m_peer << ": "
+                  << msg.message()
+                  << std::endl;
+      }
+      disconnect();
+      break;
+    }
+
+    case MsgProtoVerDowngrade::TYPE:
+      std::cerr << "*** ERROR: Federation peer "
+                << m_peer
+                << ": Remote reflector rejected V2 protocol"
+                << std::endl;
+      disconnect();
+      break;
+
+    case MsgAuthChallenge::TYPE:
+      handleAuthChallenge(stream);
+      break;
+
+    case MsgAuthOk::TYPE:
+      if (m_state != STATE_EXPECT_AUTH_OK)
+      {
+        std::cerr << "*** ERROR: Federation peer "
+                  << m_peer
+                  << ": Unexpected MsgAuthOk"
+                  << std::endl;
+        disconnect();
+        return;
+      }
+
+      std::cout << "Federation peer " << m_peer
+                << ": V2 authentication accepted"
+                << std::endl;
+
+      m_state = STATE_EXPECT_SERVER_INFO;
+      m_con.setMaxFrameSize(
+          ReflectorMsg::MAX_POSTAUTH_FRAME_SIZE);
+      break;
+
+    case MsgServerInfo::TYPE:
+      handleServerInfo(stream);
+      break;
+
+    case MsgFederationHelloAck::TYPE:
+      handleFederationAck(stream);
+      break;
+
+    default:
+      break;
+  }
+} /* FederationPeerConnection::onFrameReceived */
+
+
+void FederationPeerConnection::handleAuthChallenge(
+    std::istream& is)
+{
+  if (m_state != STATE_EXPECT_AUTH_CHALLENGE)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Unexpected MsgAuthChallenge"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  MsgAuthChallenge msg;
+  if (!msg.unpack(is) || (msg.challenge() == 0))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Invalid authentication challenge"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  sendMsg(MsgAuthResponse(
+      m_callsign,
+      m_auth_key,
+      msg.challenge()));
+
+  m_state = STATE_EXPECT_AUTH_OK;
+} /* FederationPeerConnection::handleAuthChallenge */
+
+
+void FederationPeerConnection::handleServerInfo(
+    std::istream& is)
+{
+  if (m_state != STATE_EXPECT_SERVER_INFO)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Unexpected MsgServerInfo"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  MsgServerInfo msg;
+  if (!msg.unpack(is))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Could not unpack MsgServerInfo"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if (msg.clientId() == 0)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Remote reflector supplied client ID zero"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  const std::vector<std::string>& codecs = msg.codecs();
+  if (std::find(codecs.begin(), codecs.end(), "OPUS") ==
+      codecs.end())
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Remote reflector does not advertise OPUS"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  m_client_id = msg.clientId();
+  m_state = STATE_EXPECT_FEDERATION_ACK;
+
+  sendMsg(MsgFederationHello(
+      FederationProtocol::VERSION_MAJOR,
+      FederationProtocol::VERSION_MINOR,
+      m_local_reflector_id,
+      m_local_domain,
+      m_library_generation,
+      FederationProtocol::CAP_MULTIPLEXED_OPUS));
+} /* FederationPeerConnection::handleServerInfo */
+
+
+void FederationPeerConnection::handleFederationAck(
+    std::istream& is)
+{
+  if (m_state != STATE_EXPECT_FEDERATION_ACK)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Unexpected MsgFederationHelloAck"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  MsgFederationHelloAck msg;
+  if (!msg.unpack(is))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Could not unpack MsgFederationHelloAck"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if (msg.major() != FederationProtocol::VERSION_MAJOR)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Federation major version mismatch"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if (msg.minor() > FederationProtocol::VERSION_MINOR)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Invalid negotiated federation minor version"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if (msg.reflectorId() != m_remote_reflector_id)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Federation acknowledgment identity mismatch"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if (msg.domain() != m_peer)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Federation acknowledgment domain mismatch"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if ((msg.capabilities() &
+       FederationProtocol::CAP_MULTIPLEXED_OPUS) == 0)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Mandatory multiplexed OPUS capability missing"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  m_state = STATE_CONNECTED;
+
+  std::cout << "Federation peer " << m_peer
+            << ": Federation session established:"
+            << " reflector_id=" << msg.reflectorId()
+            << " version=" << msg.major()
+            << "." << msg.minor()
+            << " capabilities=" << msg.capabilities()
+            << std::endl;
+} /* FederationPeerConnection::handleFederationAck */
+
+
+void FederationPeerConnection::heartbeatTick(
+    Async::Timer* timer)
+{
+  (void)timer;
+
+  if (m_state == STATE_DISCONNECTED)
+  {
+    return;
+  }
+
+  if ((m_tcp_heartbeat_tx_count > 0) &&
+      (--m_tcp_heartbeat_tx_count == 0))
+  {
+    sendMsg(MsgHeartbeat());
+  }
+
+  if ((m_tcp_heartbeat_rx_count > 0) &&
+      (--m_tcp_heartbeat_rx_count == 0))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": TCP heartbeat timeout"
+              << std::endl;
+    disconnect();
+  }
+} /* FederationPeerConnection::heartbeatTick */
+
+
+void FederationPeerConnection::sendMsg(
+    const ReflectorMsg& msg)
+{
+  if (!m_con.isConnected())
+  {
+    return;
+  }
+
+  if ((msg.type() >= 100) &&
+      (m_state < STATE_EXPECT_FEDERATION_ACK))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Attempt to send user message before authentication"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  m_tcp_heartbeat_tx_count = TCP_HEARTBEAT_TX_RESET;
+
+  std::ostringstream stream;
+  ReflectorMsg header(msg.type());
+
+  if (!header.pack(stream) || !msg.pack(stream))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Could not pack TCP message"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  const std::string frame(stream.str());
+  if (m_con.write(frame.data(), frame.size()) == -1)
+  {
+    disconnect();
+  }
+} /* FederationPeerConnection::sendMsg */
