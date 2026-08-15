@@ -596,6 +596,8 @@ class ReflectorClient : public sigc::trackable
     void handleMsgAuthResponse(std::istream& is);
     void handleMsgClientCsr(std::istream& is);
     void handleFederationHello(std::istream& is);
+    void handleFederationStreamStart(std::istream& is);
+    void handleFederationStreamStop(std::istream& is);
     void handleSelectTG(std::istream& is);
     void handleTgMonitor(std::istream& is);
     void handleNodeInfo(std::istream& is);
