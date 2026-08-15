@@ -246,7 +246,7 @@ ReflectorClient::ReflectorClient(Reflector *ref, Async::FramedTcpConnection *con
 
 ReflectorClient::~ReflectorClient(void)
 {
-    ReflectorFederation* federation = m_reflector->federation();
+  ReflectorFederation* federation = m_reflector->federation();
   if (federation != 0)
   {
     federation->unregisterPeerSession(this);
