@@ -249,6 +249,111 @@ std::uint16_t ReflectorFederation::validateIncomingStream(
   return FederationProtocol::STREAM_ACCEPTED;
 } /* ReflectorFederation::validateIncomingStream */
 
+const ReflectorFederation::IncomingStream*
+ReflectorFederation::findIncomingStream(std::uint32_t tg) const
+{
+  std::map<std::uint32_t, IncomingStream>::const_iterator it =
+      m_incoming_streams.find(tg);
+
+  return (it == m_incoming_streams.end())
+      ? 0
+      : &it->second;
+} /* ReflectorFederation::findIncomingStream */
+
+
+std::uint16_t ReflectorFederation::startIncomingStream(
+    const std::string& peer,
+    const std::string& origin_reflector_id,
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    const std::string& source_callsign,
+    const std::string& codec,
+    std::string& error)
+{
+  const std::uint16_t validation =
+      validateIncomingStream(
+          peer, origin_reflector_id, tg, codec, error);
+
+  if (validation != FederationProtocol::STREAM_ACCEPTED)
+  {
+    return validation;
+  }
+
+  if (stream_id == 0)
+  {
+    error = "Stream ID zero is invalid";
+    return FederationProtocol::STREAM_REJECT_PROTOCOL;
+  }
+
+  if (source_callsign.empty())
+  {
+    error = "Stream source callsign is missing";
+    return FederationProtocol::STREAM_REJECT_PROTOCOL;
+  }
+
+  std::map<std::uint32_t, IncomingStream>::const_iterator existing =
+      m_incoming_streams.find(tg);
+
+  if (existing != m_incoming_streams.end())
+  {
+    if ((existing->second.peer == peer) &&
+        (existing->second.origin_reflector_id ==
+         origin_reflector_id) &&
+        (existing->second.stream_id == stream_id))
+    {
+      error = "Federation stream is already active";
+      return FederationProtocol::STREAM_REJECT_DUPLICATE;
+    }
+
+    error = "Talkgroup already has an active federation stream";
+    return FederationProtocol::STREAM_REJECT_LOCAL_BUSY;
+  }
+
+  IncomingStream stream;
+  stream.peer = peer;
+  stream.origin_reflector_id = origin_reflector_id;
+  stream.tg = tg;
+  stream.stream_id = stream_id;
+  stream.source_callsign = source_callsign;
+  stream.codec = codec;
+
+  m_incoming_streams[tg] = stream;
+  error.clear();
+
+  return FederationProtocol::STREAM_ACCEPTED;
+} /* ReflectorFederation::startIncomingStream */
+
+
+bool ReflectorFederation::stopIncomingStream(
+    const std::string& peer,
+    const std::string& origin_reflector_id,
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    std::string& error)
+{
+  error.clear();
+
+  std::map<std::uint32_t, IncomingStream>::iterator it =
+      m_incoming_streams.find(tg);
+
+  if (it == m_incoming_streams.end())
+  {
+    error = "Federation stream is not active";
+    return false;
+  }
+
+  if ((it->second.peer != peer) ||
+      (it->second.origin_reflector_id != origin_reflector_id) ||
+      (it->second.stream_id != stream_id))
+  {
+    error = "Federation stream identity does not match active stream";
+    return false;
+  }
+
+  m_incoming_streams.erase(it);
+  return true;
+} /* ReflectorFederation::stopIncomingStream */
+
 
 bool ReflectorFederation::initialize(Async::Config& cfg)
 {

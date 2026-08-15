@@ -25,9 +25,9 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
-
 
 /****************************************************************************
  *
@@ -83,6 +83,26 @@ class ReflectorFederation
       std::string peer;
     };
 
+    struct IncomingStream
+    {
+      std::string   peer;
+      std::string   origin_reflector_id;
+      std::uint32_t tg;
+      std::uint64_t stream_id;
+      std::string   source_callsign;
+      std::string   codec;
+      std::uint32_t last_sequence;
+      bool          sequence_seen;
+
+      IncomingStream(void)
+        : tg(0),
+          stream_id(0),
+          last_sequence(0),
+          sequence_seen(false)
+      {
+      }
+    };
+
     ReflectorFederation(void);
     ~ReflectorFederation(void);
 
@@ -126,6 +146,30 @@ class ReflectorFederation
         const std::string& codec,
         std::string& error) const;
 
+    std::uint16_t startIncomingStream(
+        const std::string& peer,
+        const std::string& origin_reflector_id,
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        const std::string& source_callsign,
+        const std::string& codec,
+        std::string& error);
+
+    bool stopIncomingStream(
+        const std::string& peer,
+        const std::string& origin_reflector_id,
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        std::string& error);
+
+    const IncomingStream* findIncomingStream(
+        std::uint32_t tg) const;
+
+    std::size_t incomingStreamCount(void) const
+    {
+      return m_incoming_streams.size();
+    }
+
     const std::vector<TrustEntry>& trustEntries(void) const
     {
       return m_trust_entries;
@@ -166,6 +210,7 @@ class ReflectorFederation
     std::vector<std::string>  m_peers;
     std::vector<PeerConfig>   m_peer_configs;
     std::vector<TrustEntry>   m_trust_entries;
+    std::map<std::uint32_t, IncomingStream>  m_incoming_streams;
     FederationLibrary         m_library;
 
     ReflectorFederation(const ReflectorFederation&);
