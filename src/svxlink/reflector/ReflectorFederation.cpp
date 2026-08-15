@@ -355,6 +355,53 @@ bool ReflectorFederation::stopIncomingStream(
 } /* ReflectorFederation::stopIncomingStream */
 
 
+bool ReflectorFederation::acceptIncomingAudio(
+    const std::string& peer,
+    const std::string& origin_reflector_id,
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    std::uint32_t sequence,
+    std::string& error)
+{
+  error.clear();
+
+  std::map<std::uint32_t, IncomingStream>::iterator it =
+      m_incoming_streams.find(tg);
+
+  if (it == m_incoming_streams.end())
+  {
+    error = "Federation audio has no active stream";
+    return false;
+  }
+
+  IncomingStream& stream = it->second;
+
+  if ((stream.peer != peer) ||
+      (stream.origin_reflector_id != origin_reflector_id) ||
+      (stream.stream_id != stream_id))
+  {
+    error = "Federation audio identity does not match active stream";
+    return false;
+  }
+
+  if (stream.sequence_seen)
+  {
+    const std::uint32_t difference =
+        sequence - stream.last_sequence;
+
+    if ((difference == 0) || (difference > 0x7fffffffU))
+    {
+      error = "Federation audio sequence is duplicate or out of order";
+      return false;
+    }
+  }
+
+  stream.last_sequence = sequence;
+  stream.sequence_seen = true;
+  return true;
+} /* ReflectorFederation::acceptIncomingAudio */
+
+
 ReflectorClient* ReflectorFederation::peerSession(
     const std::string& peer) const
 {

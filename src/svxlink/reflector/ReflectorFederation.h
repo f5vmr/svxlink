@@ -164,6 +164,14 @@ class ReflectorFederation
         std::uint64_t stream_id,
         std::string& error);
 
+    bool acceptIncomingAudio(
+        const std::string& peer,
+        const std::string& origin_reflector_id,
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        std::uint32_t sequence,
+        std::string& error);
+
     std::size_t removeIncomingStreams(
         const std::string& peer);
 
