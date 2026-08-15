@@ -383,6 +383,8 @@ bool Reflector::initialize(Async::Config &cfg)
 
   m_cfg->valueUpdated.connect(sigc::mem_fun(*this, &Reflector::cfgUpdated));
 
+  m_federation->startPeerConnections();
+
   return true;
 } /* Reflector::initialize */
 
