@@ -162,6 +162,9 @@ class ReflectorFederation
         std::uint64_t stream_id,
         std::string& error);
 
+    std::size_t removeIncomingStreams(
+        const std::string& peer);
+
     const IncomingStream* findIncomingStream(
         std::uint32_t tg) const;
 

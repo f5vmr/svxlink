@@ -355,6 +355,31 @@ bool ReflectorFederation::stopIncomingStream(
 } /* ReflectorFederation::stopIncomingStream */
 
 
+std::size_t ReflectorFederation::removeIncomingStreams(
+    const std::string& peer)
+{
+  std::size_t removed = 0;
+
+  std::map<std::uint32_t, IncomingStream>::iterator it =
+      m_incoming_streams.begin();
+
+  while (it != m_incoming_streams.end())
+  {
+    if (it->second.peer == peer)
+    {
+      it = m_incoming_streams.erase(it);
+      ++removed;
+    }
+    else
+    {
+      ++it;
+    }
+  }
+
+  return removed;
+} /* ReflectorFederation::removeIncomingStreams */
+
+
 bool ReflectorFederation::initialize(Async::Config& cfg)
 {
   cfg.getValue("FEDERATION", "ENABLE", m_enabled);
