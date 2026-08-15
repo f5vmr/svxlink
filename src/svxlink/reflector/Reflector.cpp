@@ -264,8 +264,6 @@ Reflector::Reflector(void)
 
 Reflector::~Reflector(void)
 {
-  delete m_federation;
-  m_federation = 0;
   delete m_http_server;
   m_http_server = 0;
   delete m_udp_sock;
@@ -276,6 +274,8 @@ Reflector::~Reflector(void)
   m_cmd_pty = 0;
   m_client_con_map.clear();
   ReflectorClient::cleanup();
+  delete m_federation;
+  m_federation = 0;
   delete TGHandler::instance();
 } /* Reflector::~Reflector */
 

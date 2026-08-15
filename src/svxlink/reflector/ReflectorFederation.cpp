@@ -355,6 +355,92 @@ bool ReflectorFederation::stopIncomingStream(
 } /* ReflectorFederation::stopIncomingStream */
 
 
+ReflectorClient* ReflectorFederation::peerSession(
+    const std::string& peer) const
+{
+  std::map<std::string, ReflectorClient*>::const_iterator it =
+      m_peer_sessions.find(peer);
+
+  return (it == m_peer_sessions.end())
+      ? 0
+      : it->second;
+} /* ReflectorFederation::peerSession */
+
+
+bool ReflectorFederation::registerPeerSession(
+    const std::string& peer,
+    ReflectorClient* client,
+    std::string& error)
+{
+  error.clear();
+
+  if (!m_enabled)
+  {
+    error = "Federation is disabled";
+    return false;
+  }
+
+  if (client == 0)
+  {
+    error = "Cannot register a null federation session";
+    return false;
+  }
+
+  if (findPeerConfig(peer) == 0)
+  {
+    error = "Cannot register an unconfigured federation peer";
+    return false;
+  }
+
+  if (m_peer_sessions.find(peer) != m_peer_sessions.end())
+  {
+    error = "Federation peer already has an active session";
+    return false;
+  }
+
+  for (std::map<std::string, ReflectorClient*>::const_iterator
+           it=m_peer_sessions.begin();
+       it!=m_peer_sessions.end(); ++it)
+  {
+    if (it->second == client)
+    {
+      error = "Federation session is already registered to another peer";
+      return false;
+    }
+  }
+
+  m_peer_sessions[peer] = client;
+  return true;
+} /* ReflectorFederation::registerPeerSession */
+
+
+void ReflectorFederation::unregisterPeerSession(
+    ReflectorClient* client)
+{
+  if (client == 0)
+  {
+    return;
+  }
+
+  std::map<std::string, ReflectorClient*>::iterator it =
+      m_peer_sessions.begin();
+
+  while (it != m_peer_sessions.end())
+  {
+    if (it->second == client)
+    {
+      const std::string peer(it->first);
+      it = m_peer_sessions.erase(it);
+      removeIncomingStreams(peer);
+    }
+    else
+    {
+      ++it;
+    }
+  }
+} /* ReflectorFederation::unregisterPeerSession */
+
+
 std::size_t ReflectorFederation::removeIncomingStreams(
     const std::string& peer)
 {

@@ -246,6 +246,12 @@ ReflectorClient::ReflectorClient(Reflector *ref, Async::FramedTcpConnection *con
 
 ReflectorClient::~ReflectorClient(void)
 {
+    ReflectorFederation* federation = m_reflector->federation();
+  if (federation != 0)
+  {
+    federation->unregisterPeerSession(this);
+  }
+
   m_status = nullptr;
   auto client_it = client_map.find(m_client_id);
   assert(client_it != client_map.end());
@@ -912,6 +918,15 @@ void ReflectorClient::handleFederationHello(std::istream& is)
     return;
   }
 
+  if (!federation->registerPeerSession(peer, this, error))
+  {
+    std::cerr << "*** ERROR[" << m_callsign
+              << "]: Federation session rejected: "
+              << error << std::endl;
+    sendError(error);
+    return;
+  }
+
   MsgFederationHelloAck ack(
       FederationProtocol::VERSION_MAJOR,
       negotiated_minor,
@@ -924,6 +939,7 @@ void ReflectorClient::handleFederationHello(std::istream& is)
     std::cerr << "*** ERROR[" << m_callsign
               << "]: Could not send federation hello acknowledgement"
               << std::endl;
+    federation->unregisterPeerSession(this);
     disconnect();
     return;
   }
@@ -1323,6 +1339,12 @@ void ReflectorClient::onDiscTimeout(Timer *t)
 void ReflectorClient::disconnectCleanup(
     Async::FramedTcpConnection::DisconnectReason reason)
 {
+  ReflectorFederation* federation = m_reflector->federation();
+  if (federation != 0)
+  {
+    federation->unregisterPeerSession(this);
+  }
+
   m_disc_timer.setEnable(false);
   m_heartbeat_timer.setEnable(false);
   m_remote_udp_port = 0;
