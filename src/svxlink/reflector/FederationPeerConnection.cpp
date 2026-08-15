@@ -282,7 +282,7 @@ void FederationPeerConnection::onFrameReceived(
   }
 
   if ((header.type() >= 100) &&
-      (m_state < STATE_EXPECT_FEDERATION_ACK))
+      (m_state < STATE_EXPECT_SERVER_INFO))
   {
     std::cerr << "*** ERROR: Federation peer "
               << m_peer
