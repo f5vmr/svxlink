@@ -62,6 +62,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "ReflectorClient.h"
 #include "Reflector.h"
+#include "FederationMsg.h"
+#include "ReflectorFederation.h"
 #include "TGHandler.h"
 
 
@@ -547,6 +549,9 @@ void ReflectorClient::onFrameReceived(FramedTcpConnection *con,
     case MsgClientCsr::TYPE:
       handleMsgClientCsr(ss);
       break;
+    case MsgFederationHello::TYPE:
+      handleFederationHello(ss);
+      break;
     case MsgSelectTG::TYPE:
       handleSelectTG(ss);
       break;
@@ -850,6 +855,94 @@ void ReflectorClient::handleMsgClientCsr(std::istream& is)
     m_con_state = STATE_EXPECT_AUTH_RESPONSE;
   }
 } /* ReflectorClient::handleMsgClientCsr */
+
+
+void ReflectorClient::handleFederationHello(std::istream& is)
+{
+  if (m_con_state != STATE_CONNECTED)
+  {
+    sendError("Federation hello received before authentication");
+    return;
+  }
+
+  if (m_federation_session)
+  {
+    sendError("Federation hello already accepted");
+    return;
+  }
+
+  MsgFederationHello msg;
+  if (!msg.unpack(is))
+  {
+    std::cerr << "*** ERROR[" << m_callsign
+              << "]: Could not unpack MsgFederationHello"
+              << std::endl;
+    sendError("Illegal federation hello");
+    return;
+  }
+
+  ReflectorFederation* federation = m_reflector->federation();
+  if (federation == 0)
+  {
+    sendError("Federation is unavailable");
+    return;
+  }
+
+  std::string peer;
+  uint16_t negotiated_minor = 0;
+  uint32_t negotiated_capabilities = 0;
+  std::string error;
+
+  if (!federation->validatePeerHello(
+          m_callsign,
+          msg.reflectorId(),
+          msg.domain(),
+          msg.major(),
+          msg.minor(),
+          msg.capabilities(),
+          peer,
+          negotiated_minor,
+          negotiated_capabilities,
+          error))
+  {
+    std::cerr << "*** ERROR[" << m_callsign
+              << "]: Federation hello rejected: "
+              << error << std::endl;
+    sendError(error);
+    return;
+  }
+
+  MsgFederationHelloAck ack(
+      FederationProtocol::VERSION_MAJOR,
+      negotiated_minor,
+      federation->reflectorId(),
+      federation->domain(),
+      negotiated_capabilities);
+
+  if (sendMsg(ack) < 0)
+  {
+    std::cerr << "*** ERROR[" << m_callsign
+              << "]: Could not send federation hello acknowledgement"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  m_federation_session = true;
+  m_federation_peer = peer;
+  m_federation_reflector_id = msg.reflectorId();
+  m_federation_minor = negotiated_minor;
+  m_federation_capabilities = negotiated_capabilities;
+
+  std::cout << m_callsign
+            << ": Federation peer accepted:"
+            << " peer=" << m_federation_peer
+            << " reflector_id=" << m_federation_reflector_id
+            << " version=" << FederationProtocol::VERSION_MAJOR
+            << "." << m_federation_minor
+            << " capabilities=" << m_federation_capabilities
+            << std::endl;
+} /* ReflectorClient::handleFederationHello */
 
 
 void ReflectorClient::handleSelectTG(std::istream& is)

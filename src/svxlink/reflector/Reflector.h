@@ -165,6 +165,16 @@ class Reflector : public sigc::trackable
      */
     bool initialize(Async::Config &cfg);
 
+    ReflectorFederation* federation(void)
+    {
+      return m_federation;
+    }
+
+    const ReflectorFederation* federation(void) const
+    {
+      return m_federation;
+    }
+
     /**
      * @brief   Return a list of all connected nodes
      * @param   nodes The vector to return the result in
