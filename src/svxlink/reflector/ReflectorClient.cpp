@@ -993,18 +993,35 @@ void ReflectorClient::handleFederationStreamStart(std::istream& is)
   }
 
   std::string error;
-  const uint16_t reason =
-      federation->startIncomingStream(
-          m_federation_peer,
-          msg.originReflectorId(),
-          msg.tg(),
-          msg.streamId(),
-          msg.sourceCallsign(),
-          msg.codec(),
-          error);
+  uint16_t reason = FederationProtocol::STREAM_ACCEPTED;
+
+  ReflectorClient* talker =
+      TGHandler::instance()->talkerForTG(msg.tg());
+
+  if ((talker != 0) && (talker != this))
+  {
+    reason = FederationProtocol::STREAM_REJECT_LOCAL_BUSY;
+    error = "Talkgroup already has an active local talker";
+  }
+  else
+  {
+    reason = federation->startIncomingStream(
+        m_federation_peer,
+        msg.originReflectorId(),
+        msg.tg(),
+        msg.streamId(),
+        msg.sourceCallsign(),
+        msg.codec(),
+        error);
+  }
 
   const bool accepted =
       reason == FederationProtocol::STREAM_ACCEPTED;
+
+  if (accepted)
+  {
+    TGHandler::instance()->setTalkerForTG(msg.tg(), this);
+  }
 
   MsgFederationStreamResult result(
       msg.originReflectorId(),
@@ -1029,6 +1046,11 @@ void ReflectorClient::handleFederationStreamStart(std::istream& is)
           msg.tg(),
           msg.streamId(),
           rollback_error);
+
+      if (TGHandler::instance()->talkerForTG(msg.tg()) == this)
+      {
+        TGHandler::instance()->setTalkerForTG(msg.tg(), 0);
+      }
     }
 
     disconnect();
@@ -1106,6 +1128,11 @@ void ReflectorClient::handleFederationStreamStop(std::istream& is)
               << std::endl;
     sendError(error);
     return;
+  }
+
+  if (TGHandler::instance()->talkerForTG(msg.tg()) == this)
+  {
+    TGHandler::instance()->setTalkerForTG(msg.tg(), 0);
   }
 
   std::cout << m_callsign
