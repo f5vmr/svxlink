@@ -119,6 +119,13 @@ class ReflectorFederation
         std::uint32_t& negotiated_capabilities,
         std::string& error) const;
 
+    std::uint16_t validateIncomingStream(
+        const std::string& peer,
+        const std::string& origin_reflector_id,
+        std::uint32_t tg,
+        const std::string& codec,
+        std::string& error) const;
+
     const std::vector<TrustEntry>& trustEntries(void) const
     {
       return m_trust_entries;

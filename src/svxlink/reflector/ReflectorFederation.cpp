@@ -114,6 +114,7 @@ bool ReflectorFederation::validatePeerHello(
     std::uint16_t& negotiated_minor,
     std::uint32_t& negotiated_capabilities,
     std::string& error) const
+
 {
   peer.clear();
   negotiated_minor = 0;
@@ -184,6 +185,69 @@ bool ReflectorFederation::validatePeerHello(
 
   return true;
 } /* ReflectorFederation::validatePeerHello */
+
+
+std::uint16_t ReflectorFederation::validateIncomingStream(
+    const std::string& peer,
+    const std::string& origin_reflector_id,
+    std::uint32_t tg,
+    const std::string& codec,
+    std::string& error) const
+{
+  error.clear();
+
+  if (!m_enabled)
+  {
+    error = "Federation is disabled";
+    return FederationProtocol::STREAM_REJECT_PROTOCOL;
+  }
+
+  const PeerConfig* peer_config = findPeerConfig(peer);
+  if (peer_config == 0)
+  {
+    error = "Stream received from an unconfigured peer";
+    return FederationProtocol::STREAM_REJECT_PROTOCOL;
+  }
+
+  if (origin_reflector_id.empty() ||
+      (origin_reflector_id == m_reflector_id) ||
+      (origin_reflector_id != peer_config->reflector_id))
+  {
+    error = "Stream origin does not match the trusted peer";
+    return FederationProtocol::STREAM_REJECT_INVALID_ORIGIN;
+  }
+
+  if (tg == 0)
+  {
+    error = "Talkgroup zero is not a valid federation stream";
+    return FederationProtocol::STREAM_REJECT_PROTOCOL;
+  }
+
+  if (codec != "OPUS")
+  {
+    error = "Only OPUS federation streams are supported";
+    return FederationProtocol::STREAM_REJECT_CODEC;
+  }
+
+  const FederationLibrary::Route* route =
+      m_library.findRoute(tg);
+
+  if ((route == 0) ||
+      (route->scope != "family") ||
+      (route->home != peer))
+  {
+    error = "Talkgroup is not homed on the sending peer";
+    return FederationProtocol::STREAM_REJECT_POLICY;
+  }
+
+  if (!m_library.mayImport(peer, tg))
+  {
+    error = "Talkgroup is denied by local import policy";
+    return FederationProtocol::STREAM_REJECT_POLICY;
+  }
+
+  return FederationProtocol::STREAM_ACCEPTED;
+} /* ReflectorFederation::validateIncomingStream */
 
 
 bool ReflectorFederation::initialize(Async::Config& cfg)
