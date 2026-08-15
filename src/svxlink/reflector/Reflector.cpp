@@ -66,8 +66,10 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 #include "Reflector.h"
 #include "ReflectorClient.h"
-#include "ReflectorFederation.h"
 #include "TGHandler.h"
+#include "FederationMsg.h"
+#include "ReflectorFederation.h"
+
 
 
 /****************************************************************************
@@ -1239,6 +1241,82 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
     //  }
     //  break;
     //}
+
+    case MsgUdpFederationAudio::TYPE:
+    {
+      if (!client->isFederationPeer())
+      {
+        cerr << "*** WARNING[" << client->callsign()
+             << "]: Federation audio received from a non-federation client"
+             << endl;
+        return;
+      }
+
+      if ((m_federation == 0) ||
+          (m_federation->peerSession(client->federationPeer()) != client))
+      {
+        cerr << "*** WARNING[" << client->callsign()
+             << "]: Federation audio received from an unregistered session"
+             << endl;
+        return;
+      }
+
+      if (client->isBlocked())
+      {
+        break;
+      }
+
+      MsgUdpFederationAudio msg;
+      if (!msg.unpack(ss))
+      {
+        cerr << "*** WARNING[" << client->callsign()
+             << "]: Could not unpack MsgUdpFederationAudio message"
+             << endl;
+        return;
+      }
+
+      if (msg.audioData().empty())
+      {
+        break;
+      }
+
+      if (TGHandler::instance()->talkerForTG(msg.tg()) != client)
+      {
+        cerr << "*** WARNING[" << client->callsign()
+             << "]: Federation audio received for an unreserved talkgroup "
+             << msg.tg() << endl;
+        return;
+      }
+
+      string error;
+      if (!m_federation->acceptIncomingAudio(
+              client->federationPeer(),
+              msg.originReflectorId(),
+              msg.tg(),
+              msg.streamId(),
+              msg.sequence(),
+              error))
+      {
+        cerr << "*** WARNING[" << client->callsign()
+             << "]: Federation audio rejected:"
+             << " peer=" << client->federationPeer()
+             << " origin=" << msg.originReflectorId()
+             << " tg=" << msg.tg()
+             << " stream_id=" << msg.streamId()
+             << " sequence=" << msg.sequence()
+             << " detail=" << error
+             << endl;
+        return;
+      }
+
+      MsgUdpAudio local_audio(msg.audioData());
+      broadcastUdpMsg(
+          local_audio,
+          ReflectorClient::mkAndFilter(
+              ReflectorClient::ExceptFilter(client),
+              ReflectorClient::TgFilter(msg.tg())));
+      break;
+    }
 
     case MsgUdpFlushSamples::TYPE:
     {

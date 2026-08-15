@@ -321,7 +321,9 @@ void ReflectorClient::udpMsgReceived(const ReflectorUdpMsg &header)
 {
   m_udp_heartbeat_rx_cnt = UDP_HEARTBEAT_RX_CNT_RESET;
 
-  if ((m_blocktime > 0) && (header.type() == MsgUdpAudio::TYPE))
+  if ((m_blocktime > 0) &&
+      ((header.type() == MsgUdpAudio::TYPE) ||
+       (header.type() == MsgUdpFederationAudio::TYPE)))
   {
     m_remaining_blocktime = m_blocktime;
   }
