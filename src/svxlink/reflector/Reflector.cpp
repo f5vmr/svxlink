@@ -1183,6 +1183,12 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
         uint32_t tg = TGHandler::instance()->TGForClient(client);
         if (!msg.audioData().empty() && (tg > 0))
         {
+          if ((m_federation != 0) &&
+              (m_federation->findIncomingStream(tg) != 0))
+          {
+            break;
+          }
+
           ReflectorClient* talker = TGHandler::instance()->talkerForTG(tg);
           if (talker == 0)
           {
@@ -1278,14 +1284,6 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
       if (msg.audioData().empty())
       {
         break;
-      }
-
-      if (TGHandler::instance()->talkerForTG(msg.tg()) != client)
-      {
-        cerr << "*** WARNING[" << client->callsign()
-             << "]: Federation audio received for an unreserved talkgroup "
-             << msg.tg() << endl;
-        return;
       }
 
       string error;
