@@ -104,6 +104,21 @@ class ReflectorFederation
       return m_peer_configs;
     }
 
+    const PeerConfig* findPeerConfig(
+        const std::string& peer) const;
+
+    bool validatePeerHello(
+        const std::string& authenticated_callsign,
+        const std::string& reflector_id,
+        const std::string& domain,
+        std::uint16_t major,
+        std::uint16_t minor,
+        std::uint32_t capabilities,
+        std::string& peer,
+        std::uint16_t& negotiated_minor,
+        std::uint32_t& negotiated_capabilities,
+        std::string& error) const;
+
     const std::vector<TrustEntry>& trustEntries(void) const
     {
       return m_trust_entries;

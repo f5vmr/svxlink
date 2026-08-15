@@ -29,7 +29,7 @@ the Free Software Foundation; either version 2 of the License, or
  ****************************************************************************/
 
 #include "ReflectorFederation.h"
-
+#include "FederationMsg.h"
 
 
 /****************************************************************************
@@ -47,6 +47,25 @@ ReflectorFederation::ReflectorFederation(void)
 ReflectorFederation::~ReflectorFederation(void)
 {
 } /* ReflectorFederation::~ReflectorFederation */
+
+
+const ReflectorFederation::PeerConfig*
+ReflectorFederation::findPeerConfig(
+    const std::string& peer) const
+{
+  for (std::vector<PeerConfig>::const_iterator
+           it=m_peer_configs.begin();
+       it!=m_peer_configs.end(); ++it)
+  {
+    if (it->name == peer)
+    {
+      return &(*it);
+    }
+  }
+
+  return 0;
+} /* ReflectorFederation::findPeerConfig */
+
 
 const ReflectorFederation::TrustEntry*
 ReflectorFederation::findTrustByCallsign(
@@ -82,6 +101,89 @@ ReflectorFederation::findTrustByPeer(
 
   return 0;
 } /* ReflectorFederation::findTrustByPeer */
+
+
+bool ReflectorFederation::validatePeerHello(
+    const std::string& authenticated_callsign,
+    const std::string& reflector_id,
+    const std::string& domain,
+    std::uint16_t major,
+    std::uint16_t minor,
+    std::uint32_t capabilities,
+    std::string& peer,
+    std::uint16_t& negotiated_minor,
+    std::uint32_t& negotiated_capabilities,
+    std::string& error) const
+{
+  peer.clear();
+  negotiated_minor = 0;
+  negotiated_capabilities = 0;
+  error.clear();
+
+  if (!m_enabled)
+  {
+    error = "Federation is disabled";
+    return false;
+  }
+
+  const TrustEntry* trust =
+      findTrustByCallsign(authenticated_callsign);
+
+  if (trust == 0)
+  {
+    error = "Authenticated callsign is not a trusted federation peer";
+    return false;
+  }
+
+  const PeerConfig* peer_config =
+      findPeerConfig(trust->peer);
+
+  if (peer_config == 0)
+  {
+    error = "Trusted callsign refers to an unconfigured peer";
+    return false;
+  }
+
+  if (reflector_id != peer_config->reflector_id)
+  {
+    error = "Federation hello reflector identity does not match peer";
+    return false;
+  }
+
+  if (domain != peer_config->name)
+  {
+    error = "Federation hello domain does not match peer";
+    return false;
+  }
+
+  if (major != FederationProtocol::VERSION_MAJOR)
+  {
+    error = "Unsupported federation protocol major version";
+    return false;
+  }
+
+  const std::uint32_t local_capabilities =
+      FederationProtocol::CAP_MULTIPLEXED_OPUS;
+
+  const std::uint32_t common_capabilities =
+      capabilities & local_capabilities;
+
+  if ((common_capabilities &
+       FederationProtocol::CAP_MULTIPLEXED_OPUS) == 0)
+  {
+    error = "Peer does not support multiplexed Opus federation";
+    return false;
+  }
+
+  peer = peer_config->name;
+  negotiated_minor =
+      (minor < FederationProtocol::VERSION_MINOR)
+      ? minor
+      : FederationProtocol::VERSION_MINOR;
+  negotiated_capabilities = common_capabilities;
+
+  return true;
+} /* ReflectorFederation::validatePeerHello */
 
 
 bool ReflectorFederation::initialize(Async::Config& cfg)
