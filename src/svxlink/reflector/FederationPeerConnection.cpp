@@ -106,6 +106,7 @@ FederationPeerConnection::FederationPeerConnection(
         false),
     m_state(STATE_DISCONNECTED),
     m_started(false),
+    m_udp_registered(false),
     m_client_id(0),
     m_next_udp_tx_sequence(0),
     m_next_udp_rx_sequence(0),
@@ -231,6 +232,7 @@ void FederationPeerConnection::onConnected(void)
             << std::endl;
 
   m_state = STATE_EXPECT_AUTH_CHALLENGE;
+  m_udp_registered = false;
   m_client_id = 0;
   m_next_udp_tx_sequence = 0;
   m_next_udp_rx_sequence = 0;
@@ -260,6 +262,7 @@ void FederationPeerConnection::onDisconnected(
   m_heartbeat_timer.setEnable(false);
   delete m_udp_sock;
   m_udp_sock = 0;
+  m_udp_registered = false;
   m_state = STATE_DISCONNECTED;
   m_client_id = 0;
   m_next_udp_tx_sequence = 0;
@@ -665,6 +668,14 @@ void FederationPeerConnection::udpDatagramReceived(
   switch (header.type())
   {
     case MsgUdpHeartbeat::TYPE:
+      if (!m_udp_registered)
+      {
+        m_udp_registered = true;
+
+        std::cout << "Federation peer " << m_peer
+                  << ": V2 UDP path registered"
+                  << std::endl;
+      }
       break;
 
     default:

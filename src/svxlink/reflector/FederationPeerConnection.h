@@ -106,6 +106,11 @@ class FederationPeerConnection : public sigc::trackable
       return m_state == STATE_CONNECTED;
     }
 
+    bool isUdpRegistered(void) const
+    {
+      return m_udp_registered;
+    }
+
     void start(void);
     void stop(void);
 
@@ -128,6 +133,7 @@ class FederationPeerConnection : public sigc::trackable
     Async::Timer      m_heartbeat_timer;
     State             m_state;
     bool              m_started;
+    bool              m_udp_registered;
     std::uint32_t     m_client_id;
     std::uint16_t     m_next_udp_tx_sequence;
     std::uint16_t     m_next_udp_rx_sequence;
