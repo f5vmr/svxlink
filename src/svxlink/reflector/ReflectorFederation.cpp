@@ -30,6 +30,7 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include "ReflectorFederation.h"
 #include "FederationMsg.h"
+#include "FederationPeerConnection.h"
 
 
 /****************************************************************************
@@ -46,6 +47,14 @@ ReflectorFederation::ReflectorFederation(void)
 
 ReflectorFederation::~ReflectorFederation(void)
 {
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    delete *it;
+  }
+
+  m_peer_connections.clear();
 } /* ReflectorFederation::~ReflectorFederation */
 
 
@@ -761,6 +770,41 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
   m_peer_configs.swap(candidate_peer_configs);
   m_trust_entries.swap(candidate_trust_entries);
 
+  std::vector<FederationPeerConnection*> candidate_connections;
+
+  for (std::vector<PeerConfig>::const_iterator
+           it=m_peer_configs.begin();
+       it!=m_peer_configs.end(); ++it)
+  {
+    if (!it->connect)
+    {
+      continue;
+    }
+
+    candidate_connections.push_back(
+        new FederationPeerConnection(
+            it->name,
+            it->reflector_id,
+            m_reflector_id,
+            m_domain,
+            m_library.generation(),
+            m_callsign,
+            it->host,
+            it->port,
+            it->auth_key));
+  }
+
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    delete *it;
+  }
+
+  m_peer_connections.clear();
+
+  m_peer_connections.swap(candidate_connections);
+
   std::cout << "Reflector federation enabled:"
             << " domain=" << m_domain
             << " reflector_id=" << m_reflector_id
@@ -769,7 +813,10 @@ bool ReflectorFederation::initialize(Async::Config& cfg)
             << " library=" << m_library_path
             << " generation=" << m_library.generation()
             << " routes=" << m_library.routeCount()
+            << " outgoing_connections="
+            << m_peer_connections.size()
             << std::endl;
+
   for (std::vector<PeerConfig>::const_iterator
           it=m_peer_configs.begin();
       it!=m_peer_configs.end(); ++it)

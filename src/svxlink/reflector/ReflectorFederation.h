@@ -54,6 +54,8 @@ the Free Software Foundation; either version 2 of the License, or
 
 class ReflectorClient;
 
+class FederationPeerConnection;
+
 /**
 @brief  Manage federation between autonomous SVXReflectors
 
@@ -230,6 +232,11 @@ class ReflectorFederation
       return m_enabled && m_library.mayExport(peer, tg);
     }
 
+    std::size_t outgoingConnectionCount(void) const
+    {
+      return m_peer_connections.size();
+    }
+
   private:
     bool                      m_enabled;
     std::string               m_domain;
@@ -239,6 +246,7 @@ class ReflectorFederation
     std::vector<std::string>  m_peers;
     std::vector<PeerConfig>   m_peer_configs;
     std::vector<TrustEntry>   m_trust_entries;
+    std::vector<FederationPeerConnection*>  m_peer_connections;
     std::map<std::uint32_t, IncomingStream>  m_incoming_streams;
     std::map<std::string, ReflectorClient*>  m_peer_sessions;
     FederationLibrary         m_library;
