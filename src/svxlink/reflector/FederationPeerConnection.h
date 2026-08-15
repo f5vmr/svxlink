@@ -37,6 +37,7 @@ the Free Software Foundation; either version 2 of the License, or
  ****************************************************************************/
 
 #include <AsyncFramedTcpConnection.h>
+#include <AsyncIpAddress.h>
 #include <AsyncTcpPrioClient.h>
 #include <AsyncTimer.h>
 
@@ -46,6 +47,11 @@ the Free Software Foundation; either version 2 of the License, or
  * Forward declarations
  *
  ****************************************************************************/
+
+namespace Async
+{
+  class UdpSocket;
+}
 
 class ReflectorMsg;
 class ReflectorUdpMsg;
@@ -117,12 +123,16 @@ class FederationPeerConnection : public sigc::trackable
     std::uint16_t     m_port;
     std::string       m_auth_key;
     FramedTcpClient   m_con;
+    Async::UdpSocket*  m_udp_sock;
     Async::Timer      m_reconnect_timer;
     Async::Timer      m_heartbeat_timer;
     State             m_state;
     bool              m_started;
     std::uint32_t     m_client_id;
     std::uint16_t     m_next_udp_tx_sequence;
+    std::uint16_t     m_next_udp_rx_sequence;
+    unsigned          m_udp_heartbeat_tx_count;
+    unsigned          m_udp_heartbeat_rx_count;
     unsigned          m_tcp_heartbeat_tx_count;
     unsigned          m_tcp_heartbeat_rx_count;
 
@@ -146,8 +156,16 @@ class FederationPeerConnection : public sigc::trackable
     void handleAuthChallenge(std::istream& is);
     void handleServerInfo(std::istream& is);
     void handleFederationAck(std::istream& is);
+    void udpDatagramReceived(
+        const Async::IpAddress& address,
+        std::uint16_t port,
+        void* buffer,
+        int count);
+
+    void sendUdpMsg(const ReflectorUdpMsg& msg);
 
     void heartbeatTick(Async::Timer* timer);
+
     void sendMsg(const ReflectorMsg& msg);
 }; /* class FederationPeerConnection */
 

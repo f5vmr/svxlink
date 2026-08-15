@@ -25,6 +25,13 @@ the Free Software Foundation; either version 2 of the License, or
 #include <iostream>
 #include <sstream>
 
+/****************************************************************************
+ *
+ * Project Includes
+ *
+ ****************************************************************************/
+
+#include <AsyncUdpSocket.h>
 
 /****************************************************************************
  *
@@ -56,6 +63,8 @@ using namespace sigc;
 namespace
 {
   const unsigned RECONNECT_INTERVAL_MS = 60000;
+  const unsigned UDP_HEARTBEAT_TX_RESET = 15;
+  const unsigned UDP_HEARTBEAT_RX_RESET = 60;
   const unsigned TCP_HEARTBEAT_TX_RESET = 10;
   const unsigned TCP_HEARTBEAT_RX_RESET = 15;
 }
@@ -86,6 +95,7 @@ FederationPeerConnection::FederationPeerConnection(
     m_host(host),
     m_port(port),
     m_auth_key(auth_key),
+    m_udp_sock(0),
     m_reconnect_timer(
         RECONNECT_INTERVAL_MS,
         Timer::TYPE_ONESHOT,
@@ -98,6 +108,9 @@ FederationPeerConnection::FederationPeerConnection(
     m_started(false),
     m_client_id(0),
     m_next_udp_tx_sequence(0),
+    m_next_udp_rx_sequence(0),
+    m_udp_heartbeat_tx_count(0),
+    m_udp_heartbeat_rx_count(0),
     m_tcp_heartbeat_tx_count(0),
     m_tcp_heartbeat_rx_count(0)
 {
@@ -130,6 +143,9 @@ FederationPeerConnection::FederationPeerConnection(
 FederationPeerConnection::~FederationPeerConnection(void)
 {
   stop();
+
+  delete m_udp_sock;
+  m_udp_sock = 0;
 } /* FederationPeerConnection::~FederationPeerConnection */
 
 
@@ -217,6 +233,9 @@ void FederationPeerConnection::onConnected(void)
   m_state = STATE_EXPECT_AUTH_CHALLENGE;
   m_client_id = 0;
   m_next_udp_tx_sequence = 0;
+  m_next_udp_rx_sequence = 0;
+  m_udp_heartbeat_tx_count = UDP_HEARTBEAT_TX_RESET;
+  m_udp_heartbeat_rx_count = UDP_HEARTBEAT_RX_RESET;
   m_tcp_heartbeat_tx_count = TCP_HEARTBEAT_TX_RESET;
   m_tcp_heartbeat_rx_count = TCP_HEARTBEAT_RX_RESET;
 
@@ -239,9 +258,16 @@ void FederationPeerConnection::onDisconnected(
             << std::endl;
 
   m_heartbeat_timer.setEnable(false);
+  delete m_udp_sock;
+  m_udp_sock = 0;
   m_state = STATE_DISCONNECTED;
   m_client_id = 0;
   m_next_udp_tx_sequence = 0;
+  m_next_udp_rx_sequence = 0;
+  m_udp_heartbeat_tx_count = 0;
+  m_udp_heartbeat_rx_count = 0;
+  m_tcp_heartbeat_tx_count = 0;
+  m_tcp_heartbeat_rx_count = 0;
 
   if (m_started)
   {
@@ -446,6 +472,14 @@ void FederationPeerConnection::handleServerInfo(
   }
 
   m_client_id = msg.clientId();
+
+  delete m_udp_sock;
+  m_udp_sock = new UdpSocket;
+  m_udp_sock->dataReceived.connect(
+      mem_fun(
+          *this,
+          &FederationPeerConnection::udpDatagramReceived));
+
   m_state = STATE_EXPECT_FEDERATION_ACK;
 
   sendMsg(MsgFederationHello(
@@ -534,6 +568,10 @@ void FederationPeerConnection::handleFederationAck(
   }
 
   m_state = STATE_CONNECTED;
+  m_udp_heartbeat_tx_count = UDP_HEARTBEAT_TX_RESET;
+  m_udp_heartbeat_rx_count = UDP_HEARTBEAT_RX_RESET;
+
+  sendUdpMsg(MsgUdpHeartbeat());
 
   std::cout << "Federation peer " << m_peer
             << ": Federation session established:"
@@ -545,6 +583,132 @@ void FederationPeerConnection::handleFederationAck(
 } /* FederationPeerConnection::handleFederationAck */
 
 
+void FederationPeerConnection::udpDatagramReceived(
+    const Async::IpAddress& address,
+    std::uint16_t port,
+    void* buffer,
+    int count)
+{
+  if (!isConnected() || (buffer == 0) || (count <= 0))
+  {
+    return;
+  }
+
+  if (address != m_con.remoteHost())
+  {
+    std::cerr << "*** WARNING: Federation peer "
+              << m_peer
+              << ": UDP packet received from wrong address "
+              << address
+              << std::endl;
+    return;
+  }
+
+  if (port != m_con.remotePort())
+  {
+    std::cerr << "*** WARNING: Federation peer "
+              << m_peer
+              << ": UDP packet received from wrong port "
+              << port
+              << std::endl;
+    return;
+  }
+
+  std::stringstream stream;
+  stream.write(
+      reinterpret_cast<const char*>(buffer),
+      count);
+
+  ReflectorUdpMsgV2 header;
+  if (!header.unpack(stream))
+  {
+    std::cerr << "*** WARNING: Federation peer "
+              << m_peer
+              << ": Could not unpack V2 UDP header"
+              << std::endl;
+    return;
+  }
+
+  if (header.clientId() != m_client_id)
+  {
+    std::cerr << "*** WARNING: Federation peer "
+              << m_peer
+              << ": UDP client ID mismatch"
+              << std::endl;
+    return;
+  }
+
+  const std::uint16_t difference =
+      header.sequenceNum() - m_next_udp_rx_sequence;
+
+  if (difference > 0x7fff)
+  {
+    std::cerr << "*** WARNING: Federation peer "
+              << m_peer
+              << ": Dropping out-of-order UDP packet"
+              << std::endl;
+    return;
+  }
+
+  if (difference > 0)
+  {
+    std::cout << "Federation peer " << m_peer
+              << ": UDP packet loss: expected="
+              << m_next_udp_rx_sequence
+              << " received=" << header.sequenceNum()
+              << std::endl;
+  }
+
+  m_next_udp_rx_sequence = header.sequenceNum() + 1;
+  m_udp_heartbeat_rx_count = UDP_HEARTBEAT_RX_RESET;
+
+  switch (header.type())
+  {
+    case MsgUdpHeartbeat::TYPE:
+      break;
+
+    default:
+      break;
+  }
+} /* FederationPeerConnection::udpDatagramReceived */
+
+
+void FederationPeerConnection::sendUdpMsg(
+    const ReflectorUdpMsg& msg)
+{
+  if (!isConnected() ||
+      (m_udp_sock == 0) ||
+      (m_client_id == 0))
+  {
+    return;
+  }
+
+  m_udp_heartbeat_tx_count = UDP_HEARTBEAT_TX_RESET;
+
+  ReflectorUdpMsgV2 header(
+      msg.type(),
+      m_client_id,
+      m_next_udp_tx_sequence++);
+
+  std::ostringstream stream;
+  if (!header.pack(stream) || !msg.pack(stream))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Could not pack V2 UDP message"
+              << std::endl;
+    return;
+  }
+
+  const std::string datagram(stream.str());
+  m_udp_sock->write(
+      m_con.remoteHost(),
+      m_con.remotePort(),
+      datagram.data(),
+      datagram.size());
+} /* FederationPeerConnection::sendUdpMsg */
+
+
 void FederationPeerConnection::heartbeatTick(
     Async::Timer* timer)
 {
@@ -553,6 +717,26 @@ void FederationPeerConnection::heartbeatTick(
   if (m_state == STATE_DISCONNECTED)
   {
     return;
+  }
+
+  if (m_state == STATE_CONNECTED)
+  {
+    if ((m_udp_heartbeat_tx_count > 0) &&
+        (--m_udp_heartbeat_tx_count == 0))
+    {
+      sendUdpMsg(MsgUdpHeartbeat());
+    }
+
+    if ((m_udp_heartbeat_rx_count > 0) &&
+        (--m_udp_heartbeat_rx_count == 0))
+    {
+      std::cerr << "*** ERROR: Federation peer "
+                << m_peer
+                << ": UDP heartbeat timeout"
+                << std::endl;
+      disconnect();
+      return;
+    }
   }
 
   if ((m_tcp_heartbeat_tx_count > 0) &&
