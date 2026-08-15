@@ -47,6 +47,8 @@ ReflectorFederation::ReflectorFederation(void)
 
 ReflectorFederation::~ReflectorFederation(void)
 {
+  stopPeerConnections();
+
   for (std::vector<FederationPeerConnection*>::iterator
            it=m_peer_connections.begin();
        it!=m_peer_connections.end(); ++it)
@@ -520,6 +522,33 @@ std::size_t ReflectorFederation::removeIncomingStreams(
 
   return removed;
 } /* ReflectorFederation::removeIncomingStreams */
+
+
+void ReflectorFederation::startPeerConnections(void)
+{
+  if (!m_enabled)
+  {
+    return;
+  }
+
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    (*it)->start();
+  }
+} /* ReflectorFederation::startPeerConnections */
+
+
+void ReflectorFederation::stopPeerConnections(void)
+{
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    (*it)->stop();
+  }
+} /* ReflectorFederation::stopPeerConnections */
 
 
 bool ReflectorFederation::initialize(Async::Config& cfg)

@@ -237,6 +237,9 @@ class ReflectorFederation
       return m_peer_connections.size();
     }
 
+    void startPeerConnections(void);
+    void stopPeerConnections(void);
+
   private:
     bool                      m_enabled;
     std::string               m_domain;
