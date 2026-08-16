@@ -26,6 +26,7 @@ the Free Software Foundation; either version 2 of the License, or
 
 #include <cstdint>
 #include <istream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -83,6 +84,28 @@ class FederationPeerConnection : public sigc::trackable
       STATE_CONNECTED
     };
 
+    enum OutgoingStreamState
+    {
+      OUTGOING_STREAM_PENDING,
+      OUTGOING_STREAM_ACTIVE
+    };
+
+    struct OutgoingStream
+    {
+      std::uint32_t       tg;
+      std::uint64_t       stream_id;
+      std::string         source_callsign;
+      std::string         codec;
+      OutgoingStreamState state;
+
+      OutgoingStream(void)
+        : tg(0),
+          stream_id(0),
+          state(OUTGOING_STREAM_PENDING)
+      {
+      }
+    };
+
     FederationPeerConnection(
         const std::string& peer,
         const std::string& remote_reflector_id,
@@ -114,6 +137,26 @@ class FederationPeerConnection : public sigc::trackable
     void start(void);
     void stop(void);
 
+    bool startOutgoingStream(
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        const std::string& source_callsign,
+        const std::string& codec,
+        std::string& error);
+
+    bool stopOutgoingStream(
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        std::string& error);
+
+    const OutgoingStream* findOutgoingStream(
+        std::uint32_t tg) const;
+
+    std::size_t outgoingStreamCount(void) const
+    {
+      return m_outgoing_streams.size();
+    }
+
   private:
     typedef Async::TcpPrioClient<
         Async::FramedTcpConnection> FramedTcpClient;
@@ -141,6 +184,7 @@ class FederationPeerConnection : public sigc::trackable
     unsigned          m_udp_heartbeat_rx_count;
     unsigned          m_tcp_heartbeat_tx_count;
     unsigned          m_tcp_heartbeat_rx_count;
+    std::map<std::uint32_t, OutgoingStream> m_outgoing_streams;
 
     FederationPeerConnection(const FederationPeerConnection&);
     FederationPeerConnection& operator=(
@@ -162,6 +206,7 @@ class FederationPeerConnection : public sigc::trackable
     void handleAuthChallenge(std::istream& is);
     void handleServerInfo(std::istream& is);
     void handleFederationAck(std::istream& is);
+    void handleFederationStreamResult(std::istream& is);
     void udpDatagramReceived(
         const Async::IpAddress& address,
         std::uint16_t port,

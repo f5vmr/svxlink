@@ -171,6 +171,144 @@ void FederationPeerConnection::stop(void)
 } /* FederationPeerConnection::stop */
 
 
+const FederationPeerConnection::OutgoingStream*
+FederationPeerConnection::findOutgoingStream(
+    std::uint32_t tg) const
+{
+  std::map<std::uint32_t, OutgoingStream>::const_iterator it =
+      m_outgoing_streams.find(tg);
+
+  return (it == m_outgoing_streams.end())
+      ? 0
+      : &it->second;
+} /* FederationPeerConnection::findOutgoingStream */
+
+
+bool FederationPeerConnection::startOutgoingStream(
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    const std::string& source_callsign,
+    const std::string& codec,
+    std::string& error)
+{
+  error.clear();
+
+  if (!isConnected())
+  {
+    error = "Federation peer is not connected";
+    return false;
+  }
+
+  if (!isUdpRegistered())
+  {
+    error = "Federation peer UDP path is not registered";
+    return false;
+  }
+
+  if (tg == 0)
+  {
+    error = "Talkgroup zero is not a valid federation stream";
+    return false;
+  }
+
+  if (stream_id == 0)
+  {
+    error = "Stream ID zero is invalid";
+    return false;
+  }
+
+  if (source_callsign.empty())
+  {
+    error = "Stream source callsign is missing";
+    return false;
+  }
+
+  if (codec != "OPUS")
+  {
+    error = "Only OPUS federation streams are supported";
+    return false;
+  }
+
+  if (m_outgoing_streams.find(tg) !=
+      m_outgoing_streams.end())
+  {
+    error = "Talkgroup already has an outgoing federation stream";
+    return false;
+  }
+
+  OutgoingStream stream;
+  stream.tg = tg;
+  stream.stream_id = stream_id;
+  stream.source_callsign = source_callsign;
+  stream.codec = codec;
+  stream.state = OUTGOING_STREAM_PENDING;
+
+  m_outgoing_streams[tg] = stream;
+
+  sendMsg(MsgFederationStreamStart(
+      m_local_reflector_id,
+      tg,
+      stream_id,
+      source_callsign,
+      codec));
+
+  std::cout << "Federation peer " << m_peer
+            << ": Requested outgoing stream:"
+            << " tg=" << tg
+            << " stream_id=" << stream_id
+            << " source=" << source_callsign
+            << " codec=" << codec
+            << std::endl;
+
+  return true;
+} /* FederationPeerConnection::startOutgoingStream */
+
+
+bool FederationPeerConnection::stopOutgoingStream(
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    std::string& error)
+{
+  error.clear();
+
+  if (!isConnected())
+  {
+    error = "Federation peer is not connected";
+    return false;
+  }
+
+  std::map<std::uint32_t, OutgoingStream>::iterator it =
+      m_outgoing_streams.find(tg);
+
+  if (it == m_outgoing_streams.end())
+  {
+    error = "Outgoing federation stream is not active";
+    return false;
+  }
+
+  if (it->second.stream_id != stream_id)
+  {
+    error = "Outgoing federation stream identity does not match";
+    return false;
+  }
+
+  sendMsg(MsgFederationStreamStop(
+      m_local_reflector_id,
+      tg,
+      stream_id));
+
+  m_outgoing_streams.erase(it);
+
+  std::cout << "Federation peer " << m_peer
+            << ": Stopped outgoing stream:"
+            << " tg=" << tg
+            << " stream_id=" << stream_id
+            << std::endl;
+
+  return true;
+} /* FederationPeerConnection::stopOutgoingStream */
+
+
 /****************************************************************************
  *
  * Private member functions
@@ -269,6 +407,7 @@ void FederationPeerConnection::onDisconnected(
   m_next_udp_rx_sequence = 0;
   m_udp_heartbeat_tx_count = 0;
   m_udp_heartbeat_rx_count = 0;
+  m_outgoing_streams.clear();
   m_tcp_heartbeat_tx_count = 0;
   m_tcp_heartbeat_rx_count = 0;
 
@@ -387,6 +526,10 @@ void FederationPeerConnection::onFrameReceived(
 
     case MsgFederationHelloAck::TYPE:
       handleFederationAck(stream);
+      break;
+
+    case MsgFederationStreamResult::TYPE:
+      handleFederationStreamResult(stream);
       break;
 
     default:
@@ -584,6 +727,94 @@ void FederationPeerConnection::handleFederationAck(
             << " capabilities=" << msg.capabilities()
             << std::endl;
 } /* FederationPeerConnection::handleFederationAck */
+
+
+void FederationPeerConnection::handleFederationStreamResult(
+    std::istream& is)
+{
+  if (!isConnected())
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Stream result received before federation connection"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  MsgFederationStreamResult msg;
+  if (!msg.unpack(is))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Could not unpack MsgFederationStreamResult"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  if (msg.originReflectorId() != m_local_reflector_id)
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Stream result origin identity mismatch"
+              << std::endl;
+    disconnect();
+    return;
+  }
+
+  std::map<std::uint32_t, OutgoingStream>::iterator it =
+      m_outgoing_streams.find(msg.tg());
+
+  if ((it == m_outgoing_streams.end()) ||
+      (it->second.stream_id != msg.streamId()) ||
+      (it->second.state != OUTGOING_STREAM_PENDING))
+  {
+    std::cerr << "*** WARNING: Federation peer "
+              << m_peer
+              << ": Stream result does not match a pending stream:"
+              << " tg=" << msg.tg()
+              << " stream_id=" << msg.streamId()
+              << std::endl;
+    return;
+  }
+
+  if (msg.accepted() &&
+      (msg.reason() == FederationProtocol::STREAM_ACCEPTED))
+  {
+    it->second.state = OUTGOING_STREAM_ACTIVE;
+
+    std::cout << "Federation peer " << m_peer
+              << ": Outgoing stream accepted:"
+              << " tg=" << msg.tg()
+              << " stream_id=" << msg.streamId()
+              << std::endl;
+    return;
+  }
+
+  if (msg.accepted() ||
+      (msg.reason() == FederationProtocol::STREAM_ACCEPTED))
+  {
+    std::cerr << "*** ERROR: Federation peer "
+              << m_peer
+              << ": Inconsistent stream result"
+              << std::endl;
+    m_outgoing_streams.erase(it);
+    disconnect();
+    return;
+  }
+
+  std::cerr << "*** WARNING: Federation peer "
+            << m_peer
+            << ": Outgoing stream rejected:"
+            << " tg=" << msg.tg()
+            << " stream_id=" << msg.streamId()
+            << " reason=" << msg.reason()
+            << " detail=" << msg.detail()
+            << std::endl;
+
+  m_outgoing_streams.erase(it);
+} /* FederationPeerConnection::handleFederationStreamResult */
 
 
 void FederationPeerConnection::udpDatagramReceived(
