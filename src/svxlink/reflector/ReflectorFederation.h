@@ -237,6 +237,9 @@ class ReflectorFederation
       return m_peer_connections.size();
     }
 
+    FederationPeerConnection* peerConnection(
+        const std::string& peer) const;
+
     void startPeerConnections(void);
     void stopPeerConnections(void);
 

@@ -524,6 +524,23 @@ std::size_t ReflectorFederation::removeIncomingStreams(
 } /* ReflectorFederation::removeIncomingStreams */
 
 
+FederationPeerConnection* ReflectorFederation::peerConnection(
+    const std::string& peer) const
+{
+  for (std::vector<FederationPeerConnection*>::const_iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    if (((*it) != 0) && ((*it)->peer() == peer))
+    {
+      return *it;
+    }
+  }
+
+  return 0;
+} /* ReflectorFederation::peerConnection */
+
+
 void ReflectorFederation::startPeerConnections(void)
 {
   if (!m_enabled)
