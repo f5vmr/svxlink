@@ -240,6 +240,19 @@ class ReflectorFederation
         std::vector<std::string>& started_peers,
         std::string& error);
 
+    std::size_t sendLocalAudio(
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        const std::vector<std::uint8_t>& audio_data,
+        std::vector<std::string>& sent_peers,
+        std::string& error);
+
+    std::size_t stopLocalStream(
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        std::vector<std::string>& stopped_peers,
+        std::string& error);
+
     std::size_t outgoingConnectionCount(void) const
     {
       return m_peer_connections.size();

@@ -641,6 +641,229 @@ std::size_t ReflectorFederation::startLocalStream(
 } /* ReflectorFederation::startLocalStream */
 
 
+std::size_t ReflectorFederation::sendLocalAudio(
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    const std::vector<std::uint8_t>& audio_data,
+    std::vector<std::string>& sent_peers,
+    std::string& error)
+{
+  sent_peers.clear();
+  error.clear();
+
+  if (!m_enabled)
+  {
+    error = "Federation is disabled";
+    return 0;
+  }
+
+  if (tg == 0)
+  {
+    error = "Talkgroup zero is not a valid federation stream";
+    return 0;
+  }
+
+  if (stream_id == 0)
+  {
+    error = "Stream ID zero is invalid";
+    return 0;
+  }
+
+  if (audio_data.empty())
+  {
+    error = "Federation audio data is empty";
+    return 0;
+  }
+
+  std::size_t matching_streams = 0;
+  std::size_t active_streams = 0;
+  std::size_t permitted_streams = 0;
+  std::string last_error;
+
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    FederationPeerConnection* connection = *it;
+    if (connection == 0)
+    {
+      continue;
+    }
+
+    const FederationPeerConnection::OutgoingStream* stream =
+        connection->findOutgoingStream(tg);
+
+    if ((stream == 0) ||
+        (stream->stream_id != stream_id))
+    {
+      continue;
+    }
+
+    ++matching_streams;
+
+    if (stream->state !=
+        FederationPeerConnection::OUTGOING_STREAM_ACTIVE)
+    {
+      continue;
+    }
+
+    ++active_streams;
+
+    if (!mayExport(connection->peer(), tg))
+    {
+      continue;
+    }
+
+    ++permitted_streams;
+
+    std::string peer_error;
+    if (connection->sendOutgoingAudio(
+            tg,
+            stream_id,
+            audio_data,
+            peer_error))
+    {
+      sent_peers.push_back(connection->peer());
+    }
+    else
+    {
+      last_error = peer_error;
+
+      std::cerr << "*** WARNING: Federation peer "
+                << connection->peer()
+                << ": Could not send local audio:"
+                << " tg=" << tg
+                << " stream_id=" << stream_id
+                << " detail=" << peer_error
+                << std::endl;
+    }
+  }
+
+  if (!sent_peers.empty())
+  {
+    return sent_peers.size();
+  }
+
+  if (matching_streams == 0)
+  {
+    error = "No outgoing federation stream matches the local stream";
+  }
+  else if (active_streams == 0)
+  {
+    error = "No matching outgoing federation stream is active";
+  }
+  else if (permitted_streams == 0)
+  {
+    error = "No active outgoing stream is permitted by export policy";
+  }
+  else if (!last_error.empty())
+  {
+    error = last_error;
+  }
+  else
+  {
+    error = "No federation peer accepted the local audio";
+  }
+
+  return 0;
+} /* ReflectorFederation::sendLocalAudio */
+
+
+std::size_t ReflectorFederation::stopLocalStream(
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    std::vector<std::string>& stopped_peers,
+    std::string& error)
+{
+  stopped_peers.clear();
+  error.clear();
+
+  if (!m_enabled)
+  {
+    error = "Federation is disabled";
+    return 0;
+  }
+
+  if (tg == 0)
+  {
+    error = "Talkgroup zero is not a valid federation stream";
+    return 0;
+  }
+
+  if (stream_id == 0)
+  {
+    error = "Stream ID zero is invalid";
+    return 0;
+  }
+
+  std::size_t matching_streams = 0;
+  std::string last_error;
+
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    FederationPeerConnection* connection = *it;
+    if (connection == 0)
+    {
+      continue;
+    }
+
+    const FederationPeerConnection::OutgoingStream* stream =
+        connection->findOutgoingStream(tg);
+
+    if ((stream == 0) ||
+        (stream->stream_id != stream_id))
+    {
+      continue;
+    }
+
+    ++matching_streams;
+
+    std::string peer_error;
+    if (connection->stopOutgoingStream(
+            tg,
+            stream_id,
+            peer_error))
+    {
+      stopped_peers.push_back(connection->peer());
+    }
+    else
+    {
+      last_error = peer_error;
+
+      std::cerr << "*** WARNING: Federation peer "
+                << connection->peer()
+                << ": Could not stop local stream:"
+                << " tg=" << tg
+                << " stream_id=" << stream_id
+                << " detail=" << peer_error
+                << std::endl;
+    }
+  }
+
+  if (!stopped_peers.empty())
+  {
+    return stopped_peers.size();
+  }
+
+  if (matching_streams == 0)
+  {
+    error = "No outgoing federation stream matches the local stream";
+  }
+  else if (!last_error.empty())
+  {
+    error = last_error;
+  }
+  else
+  {
+    error = "No federation peer stopped the local stream";
+  }
+
+  return 0;
+} /* ReflectorFederation::stopLocalStream */
+
+
 FederationPeerConnection* ReflectorFederation::peerConnection(
     const std::string& peer) const
 {
