@@ -41,7 +41,8 @@ the Free Software Foundation; either version 2 of the License, or
 
 ReflectorFederation::ReflectorFederation(void)
   : m_enabled(false),
-    m_library_path("/etc/svxlink/federation.json")
+    m_library_path("/etc/svxlink/federation.json"),
+    m_next_local_stream_id(1)
 {
 } /* ReflectorFederation::ReflectorFederation */
 
@@ -522,6 +523,171 @@ std::size_t ReflectorFederation::removeIncomingStreams(
 
   return removed;
 } /* ReflectorFederation::removeIncomingStreams */
+
+
+const ReflectorFederation::LocalStream*
+ReflectorFederation::findLocalStream(
+    std::uint32_t tg) const
+{
+  std::map<std::uint32_t, LocalStream>::const_iterator it =
+      m_local_streams.find(tg);
+
+  return (it == m_local_streams.end())
+      ? 0
+      : &it->second;
+} /* ReflectorFederation::findLocalStream */
+
+
+bool ReflectorFederation::beginLocalStream(
+    std::uint32_t tg,
+    const std::string& source_callsign,
+    const std::string& codec,
+    std::uint64_t& stream_id,
+    std::vector<std::string>& started_peers,
+    std::string& error)
+{
+  stream_id = 0;
+  started_peers.clear();
+  error.clear();
+
+  if (!m_enabled)
+  {
+    error = "Federation is disabled";
+    return false;
+  }
+
+  if (tg == 0)
+  {
+    error = "Talkgroup zero is not a valid federation stream";
+    return false;
+  }
+
+  if (source_callsign.empty())
+  {
+    error = "Stream source callsign is missing";
+    return false;
+  }
+
+  if (codec != "OPUS")
+  {
+    error = "Only OPUS federation streams are supported";
+    return false;
+  }
+
+  if (m_local_streams.find(tg) != m_local_streams.end())
+  {
+    error = "Talkgroup already has a local federation stream";
+    return false;
+  }
+
+  stream_id = m_next_local_stream_id++;
+
+  if (stream_id == 0)
+  {
+    stream_id = m_next_local_stream_id++;
+  }
+
+  if (m_next_local_stream_id == 0)
+  {
+    m_next_local_stream_id = 1;
+  }
+
+  LocalStream stream;
+  stream.tg = tg;
+  stream.stream_id = stream_id;
+  stream.source_callsign = source_callsign;
+  stream.codec = codec;
+
+  const std::size_t started =
+      startLocalStream(
+          tg,
+          stream_id,
+          source_callsign,
+          codec,
+          started_peers,
+          error);
+
+  stream.export_requested = (started > 0);
+  m_local_streams[tg] = stream;
+
+  return true;
+} /* ReflectorFederation::beginLocalStream */
+
+
+std::size_t ReflectorFederation::sendLocalStreamAudio(
+    std::uint32_t tg,
+    const std::vector<std::uint8_t>& audio_data,
+    std::vector<std::string>& sent_peers,
+    std::string& error)
+{
+  sent_peers.clear();
+  error.clear();
+
+  std::map<std::uint32_t, LocalStream>::const_iterator it =
+      m_local_streams.find(tg);
+
+  if (it == m_local_streams.end())
+  {
+    error = "Talkgroup does not have a local federation stream";
+    return 0;
+  }
+
+  if (audio_data.empty())
+  {
+    error = "Federation audio data is empty";
+    return 0;
+  }
+
+  if (!it->second.export_requested)
+  {
+    return 0;
+  }
+
+  return sendLocalAudio(
+      tg,
+      it->second.stream_id,
+      audio_data,
+      sent_peers,
+      error);
+} /* ReflectorFederation::sendLocalStreamAudio */
+
+
+std::size_t ReflectorFederation::endLocalStream(
+    std::uint32_t tg,
+    std::vector<std::string>& stopped_peers,
+    std::string& error)
+{
+  stopped_peers.clear();
+  error.clear();
+
+  std::map<std::uint32_t, LocalStream>::iterator it =
+      m_local_streams.find(tg);
+
+  if (it == m_local_streams.end())
+  {
+    error = "Talkgroup does not have a local federation stream";
+    return 0;
+  }
+
+  const std::uint64_t stream_id = it->second.stream_id;
+  const bool export_requested = it->second.export_requested;
+
+  if (!export_requested)
+  {
+    m_local_streams.erase(it);
+    return 0;
+  }
+
+  const std::size_t stopped =
+      stopLocalStream(
+          tg,
+          stream_id,
+          stopped_peers,
+          error);
+
+  m_local_streams.erase(it);
+  return stopped;
+} /* ReflectorFederation::endLocalStream */
 
 
 std::size_t ReflectorFederation::startLocalStream(

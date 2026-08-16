@@ -107,6 +107,22 @@ class ReflectorFederation
       }
     };
 
+    struct LocalStream
+    {
+      std::uint32_t tg;
+      std::uint64_t stream_id;
+      std::string   source_callsign;
+      std::string   codec;
+      bool          export_requested;
+
+      LocalStream(void)
+        : tg(0),
+          stream_id(0),
+          export_requested(false)
+      {
+      }
+    };
+
     ReflectorFederation(void);
     ~ReflectorFederation(void);
 
@@ -232,6 +248,33 @@ class ReflectorFederation
       return m_enabled && m_library.mayExport(peer, tg);
     }
 
+    bool beginLocalStream(
+        std::uint32_t tg,
+        const std::string& source_callsign,
+        const std::string& codec,
+        std::uint64_t& stream_id,
+        std::vector<std::string>& started_peers,
+        std::string& error);
+
+    std::size_t sendLocalStreamAudio(
+        std::uint32_t tg,
+        const std::vector<std::uint8_t>& audio_data,
+        std::vector<std::string>& sent_peers,
+        std::string& error);
+
+    std::size_t endLocalStream(
+        std::uint32_t tg,
+        std::vector<std::string>& stopped_peers,
+        std::string& error);
+
+    const LocalStream* findLocalStream(
+        std::uint32_t tg) const;
+
+    std::size_t localStreamCount(void) const
+    {
+      return m_local_streams.size();
+    }
+
     std::size_t startLocalStream(
         std::uint32_t tg,
         std::uint64_t stream_id,
@@ -275,6 +318,8 @@ class ReflectorFederation
     std::vector<TrustEntry>   m_trust_entries;
     std::vector<FederationPeerConnection*>  m_peer_connections;
     std::map<std::uint32_t, IncomingStream>  m_incoming_streams;
+    std::map<std::uint32_t, LocalStream>     m_local_streams;
+    std::uint64_t                            m_next_local_stream_id;
     std::map<std::string, ReflectorClient*>  m_peer_sessions;
     FederationLibrary         m_library;
 
