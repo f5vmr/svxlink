@@ -21,18 +21,17 @@ ENABLE=0
 # match REFLECTOR_ID in each remote peer's configuration.
 #REFLECTOR_ID=uk-wide.example.org
 
-# Federation access identity used when this reflector authenticates
-# to remote reflectors through the accepted V2 callsign/password
-# challenge-response mechanism.
+# Federation access identity used by this reflector when connecting
+# to its configured peers.
 #
 # CALLSIGN is the established SVXReflector configuration name. The
-# configured value is an administrator-issued service identity and
-# is not intended to represent an on-air amateur callsign.
+# value identifies a federated reflector and is not the callsign of
+# a user originating audio.
 #
-# Each remote reflector must authorise this identity through its
-# normal access configuration and map it to this peer in
-# [FEDERATION_TRUST]. The identity must also satisfy the receiving
-# reflector's configured callsign acceptance rules.
+# Before use, this identity must be registered and accepted through
+# the normal callsign and X.509 certificate administration of every
+# receiving reflector. Each receiving reflector must then map it to
+# the appropriate peer in [FEDERATION_TRUST].
 #CALLSIGN=REFLECTOR-FUK
 
 # JSON routing and peer-policy library.
@@ -71,7 +70,8 @@ ENABLE=0
 # Remote SVXReflector TCP/UDP service port.
 #PORT=35300
 
-# Federation connections currently use the accepted V2 transport.
+# Federation connections currently negotiate SVXReflector client
+# protocol version 2.0.
 #PROTOCOL=2
 
 # Authentication key for the local CALLSIGN access identity on the
@@ -82,19 +82,13 @@ ENABLE=0
 #CONNECT=1
 
 
-###################################################################
+# Each configured peer requires exactly one trusted incoming
+# federation access identity.
 #
-# Trusted incoming federation identities
-#
-# Each configured peer requires exactly one trusted incoming access
-# identity. The identity must also be authorised through the normal
-# reflector access configuration.
-#
-# A trusted identity is accepted as a federation peer only when its
-# federation hello also matches the configured peer name, reflector
-# identity, domain and supported protocol.
-#
-###################################################################
+# The identity must first be registered and accepted through the
+# receiving reflector's normal callsign and X.509 certificate
+# administration. [FEDERATION_TRUST] then grants that accepted
+# identity the federation privileges of the named peer.
 
 
 #[FEDERATION_TRUST]

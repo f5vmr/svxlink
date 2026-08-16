@@ -141,24 +141,32 @@ The stable `REFLECTOR_ID` is a separate identity. It identifies the reflector
 in federation messages and should normally be a globally unique DNS-style
 name.
 
-## Authentication and trust
+## Federation access registration and trust
 
-Federation reuses the existing V2-compatible challenge-response login:
+Each participating reflector uses a dedicated federation access identity, for
+example `REFLECTOR-FUK` or `REFLECTOR-FNA`.
 
-1. The outgoing reflector connects using its configured federation access
-   identity and `AUTH_KEY`.
-2. The receiving reflector authenticates that identity using its normal
-   access configuration.
-3. The authenticated identity must appear in `[FEDERATION_TRUST]`.
-4. The federation hello must agree with the configured peer name, expected
-   `REFLECTOR_ID`, domain and supported protocol.
-5. Only after these checks is the connection accepted as a federation peer.
+Before federation can operate, the administrator of each receiving reflector
+must register and accept the remote reflector's federation access identity
+through the normal SVXReflector callsign and X.509 certificate administration
+process.
 
-An ordinary authenticated reflector client receives no federation privileges
-unless its identity is explicitly trusted as a configured federation peer.
+This is an administrative prerequisite. It does not change talkgroup handling,
+UDP transport, OPUS audio, stream identity or routing policy.
 
-Peer credentials are local configuration. They are never stored in the JSON
-policy library or sent as federation policy data.
+After the federation access identity has been accepted:
+
+1. The identity must appear in `[FEDERATION_TRUST]`.
+2. The trust entry maps that identity to exactly one configured peer.
+3. The federation hello must contain the expected `REFLECTOR_ID` and domain.
+4. Only then is the authenticated connection granted federation privileges.
+
+An accepted ordinary client identity has no federation privileges unless it is
+also explicitly mapped in `[FEDERATION_TRUST]`.
+
+The federation access identity identifies the peer reflector. It is separate
+from the callsign of the user originating a talkgroup stream. For example,
+`REFLECTOR-FNA` may carry a stream whose source callsign is `G4NAB-10`.
 
 ## Transport and wire protocol
 
@@ -482,7 +490,7 @@ The development test environment has verified:
 
 - default-denied export policy;
 - disconnected peers receiving no stream request;
-- V2 authentication and federation hello negotiation;
+- accepted peer authentication and federation hello negotiation;
 - confirmed UDP registration and heartbeats;
 - outgoing stream pending and active states;
 - OPUS audio queued before acceptance and flushed afterward;
@@ -503,8 +511,6 @@ The development test environment has verified:
 - Imported streams are not relayed to additional peers.
 - X.509 certification and the reflector protocol 3.0 certificate
   infrastructure are implemented by the participating reflectors and remain
-  available. Federation peer access in the current implementation deliberately
-  uses the accepted protocol 2.0 callsign/password challenge-response
-  mechanism.
+  available.
 - Federation protocol and configuration compatibility are not yet declared
   stable.
