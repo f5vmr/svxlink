@@ -1182,6 +1182,7 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
                << "]: Could not unpack incoming MsgUdpAudioV1 message" << endl;
           return;
         }
+
         uint32_t tg = TGHandler::instance()->TGForClient(client);
         if (!msg.audioData().empty() && (tg > 0))
         {
@@ -1191,25 +1192,73 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
             break;
           }
 
-          ReflectorClient* talker = TGHandler::instance()->talkerForTG(tg);
+          ReflectorClient* talker =
+              TGHandler::instance()->talkerForTG(tg);
+
           if (talker == 0)
           {
             TGHandler::instance()->setTalkerForTG(tg, client);
             talker = TGHandler::instance()->talkerForTG(tg);
           }
+
           if (talker == client)
           {
             TGHandler::instance()->setTalkerForTG(tg, client);
-            broadcastUdpMsg(msg,
+
+            broadcastUdpMsg(
+                msg,
                 ReflectorClient::mkAndFilter(
-                  ReflectorClient::ExceptFilter(client),
-                  ReflectorClient::TgFilter(tg)));
-            //broadcastUdpMsgExcept(tg, client, msg,
-            //    ProtoVerRange(ProtoVer(0, 6),
-            //                  ProtoVer(1, ProtoVer::max().minor())));
-            //MsgUdpAudio msg_v2(msg);
-            //broadcastUdpMsgExcept(tg, client, msg_v2,
-            //    ProtoVerRange(ProtoVer(2, 0), ProtoVer::max()));
+                    ReflectorClient::ExceptFilter(client),
+                    ReflectorClient::TgFilter(tg)));
+
+            if ((m_federation != 0) &&
+                m_federation->isEnabled())
+            {
+              if (m_federation->findLocalStream(tg) == 0)
+              {
+                std::uint64_t stream_id = 0;
+                std::vector<std::string> started_peers;
+                std::string error;
+
+                if (!m_federation->beginLocalStream(
+                        tg,
+                        client->callsign(),
+                        "OPUS",
+                        stream_id,
+                        started_peers,
+                        error))
+                {
+                  std::cerr << "*** WARNING["
+                            << client->callsign()
+                            << "]: Could not begin local federation stream:"
+                            << " tg=" << tg
+                            << " detail=" << error
+                            << std::endl;
+                }
+              }
+
+              if (m_federation->findLocalStream(tg) != 0)
+              {
+                std::vector<std::string> sent_peers;
+                std::string error;
+
+                m_federation->sendLocalStreamAudio(
+                    tg,
+                    msg.audioData(),
+                    sent_peers,
+                    error);
+
+                if (!error.empty())
+                {
+                  std::cerr << "*** WARNING["
+                            << client->callsign()
+                            << "]: Could not send local federation audio:"
+                            << " tg=" << tg
+                            << " detail=" << error
+                            << std::endl;
+                }
+              }
+            }
           }
         }
       }
@@ -1321,11 +1370,37 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
     case MsgUdpFlushSamples::TYPE:
     {
       uint32_t tg = TGHandler::instance()->TGForClient(client);
-      ReflectorClient* talker = TGHandler::instance()->talkerForTG(tg);
+      ReflectorClient* talker =
+          TGHandler::instance()->talkerForTG(tg);
+
       if ((tg > 0) && (client == talker))
       {
+        if ((m_federation != 0) &&
+            m_federation->isEnabled() &&
+            (m_federation->findLocalStream(tg) != 0))
+        {
+          std::vector<std::string> stopped_peers;
+          std::string error;
+
+          m_federation->endLocalStream(
+              tg,
+              stopped_peers,
+              error);
+
+          if (!error.empty())
+          {
+            std::cerr << "*** WARNING["
+                      << client->callsign()
+                      << "]: Could not end local federation stream:"
+                      << " tg=" << tg
+                      << " detail=" << error
+                      << std::endl;
+          }
+        }
+
         TGHandler::instance()->setTalkerForTG(tg, 0);
       }
+
         // To be 100% correct the reflector should wait for all connected
         // clients to send a MsgUdpAllSamplesFlushed message but that will
         // probably lead to problems, especially on reflectors with many
