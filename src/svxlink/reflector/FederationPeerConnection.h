@@ -25,6 +25,7 @@ the Free Software Foundation; either version 2 of the License, or
  ****************************************************************************/
 
 #include <cstdint>
+#include <deque>
 #include <istream>
 #include <map>
 #include <string>
@@ -98,7 +99,7 @@ class FederationPeerConnection : public sigc::trackable
       std::string         codec;
       OutgoingStreamState state;
       std::uint32_t       next_audio_sequence;
-
+      std::deque<std::vector<std::uint8_t> > pending_audio;
       OutgoingStream(void)
         : tg(0),
           stream_id(0),
@@ -220,6 +221,10 @@ class FederationPeerConnection : public sigc::trackable
         std::uint16_t port,
         void* buffer,
         int count);
+
+    void sendOutgoingAudioFrame(
+        OutgoingStream& stream,
+        const std::vector<std::uint8_t>& audio_data);
 
     void sendUdpMsg(const ReflectorUdpMsg& msg);
 

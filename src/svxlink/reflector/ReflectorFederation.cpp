@@ -676,7 +676,7 @@ std::size_t ReflectorFederation::sendLocalAudio(
   }
 
   std::size_t matching_streams = 0;
-  std::size_t active_streams = 0;
+  std::size_t sendable_streams = 0;
   std::size_t permitted_streams = 0;
   std::string last_error;
 
@@ -701,13 +701,15 @@ std::size_t ReflectorFederation::sendLocalAudio(
 
     ++matching_streams;
 
-    if (stream->state !=
-        FederationPeerConnection::OUTGOING_STREAM_ACTIVE)
+    if ((stream->state !=
+         FederationPeerConnection::OUTGOING_STREAM_PENDING) &&
+        (stream->state !=
+         FederationPeerConnection::OUTGOING_STREAM_ACTIVE))
     {
       continue;
     }
 
-    ++active_streams;
+    ++sendable_streams;
 
     if (!mayExport(connection->peer(), tg))
     {
@@ -748,13 +750,13 @@ std::size_t ReflectorFederation::sendLocalAudio(
   {
     error = "No outgoing federation stream matches the local stream";
   }
-  else if (active_streams == 0)
+  else if (sendable_streams == 0)
   {
-    error = "No matching outgoing federation stream is active";
+    error = "No matching outgoing federation stream can accept audio";
   }
   else if (permitted_streams == 0)
   {
-    error = "No active outgoing stream is permitted by export policy";
+    error = "No matching outgoing stream is permitted by export policy";
   }
   else if (!last_error.empty())
   {

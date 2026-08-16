@@ -67,6 +67,7 @@ namespace
   const unsigned UDP_HEARTBEAT_RX_RESET = 60;
   const unsigned TCP_HEARTBEAT_TX_RESET = 10;
   const unsigned TCP_HEARTBEAT_RX_RESET = 15;
+  const std::size_t MAX_PENDING_AUDIO_FRAMES = 25;
 }
 
 
@@ -350,28 +351,31 @@ bool FederationPeerConnection::sendOutgoingAudio(
     return false;
   }
 
-  if (it->second.state != OUTGOING_STREAM_ACTIVE)
-  {
-    error = "Outgoing federation stream is not active";
-    return false;
-  }
-
   if (audio_data.empty())
   {
     error = "Federation audio data is empty";
     return false;
   }
 
-  MsgUdpFederationAudio msg(
-      m_local_reflector_id,
-      tg,
-      stream_id,
-      it->second.next_audio_sequence,
-      audio_data);
+  if (it->second.state == OUTGOING_STREAM_PENDING)
+  {
+    if (it->second.pending_audio.size() >=
+        MAX_PENDING_AUDIO_FRAMES)
+    {
+      it->second.pending_audio.pop_front();
+    }
 
-  sendUdpMsg(msg);
-  ++it->second.next_audio_sequence;
+    it->second.pending_audio.push_back(audio_data);
+    return true;
+  }
 
+  if (it->second.state != OUTGOING_STREAM_ACTIVE)
+  {
+    error = "Outgoing federation stream has an invalid state";
+    return false;
+  }
+
+  sendOutgoingAudioFrame(it->second, audio_data);
   return true;
 } /* FederationPeerConnection::sendOutgoingAudio */
 
@@ -381,6 +385,22 @@ bool FederationPeerConnection::sendOutgoingAudio(
  * Private member functions
  *
  ****************************************************************************/
+
+void FederationPeerConnection::sendOutgoingAudioFrame(
+    OutgoingStream& stream,
+    const std::vector<std::uint8_t>& audio_data)
+{
+  MsgUdpFederationAudio msg(
+      m_local_reflector_id,
+      stream.tg,
+      stream.stream_id,
+      stream.next_audio_sequence,
+      audio_data);
+
+  sendUdpMsg(msg);
+  ++stream.next_audio_sequence;
+} /* FederationPeerConnection::sendOutgoingAudioFrame */
+
 
 void FederationPeerConnection::connect(void)
 {
@@ -851,10 +871,23 @@ void FederationPeerConnection::handleFederationStreamResult(
   {
     it->second.state = OUTGOING_STREAM_ACTIVE;
 
+    const std::size_t queued_frames =
+        it->second.pending_audio.size();
+
+    while (!it->second.pending_audio.empty())
+    {
+      const std::vector<std::uint8_t> audio_data(
+          it->second.pending_audio.front());
+
+      it->second.pending_audio.pop_front();
+      sendOutgoingAudioFrame(it->second, audio_data);
+    }
+
     std::cout << "Federation peer " << m_peer
               << ": Outgoing stream accepted:"
               << " tg=" << msg.tg()
               << " stream_id=" << msg.streamId()
+              << " queued_audio_frames=" << queued_frames
               << std::endl;
     return;
   }
