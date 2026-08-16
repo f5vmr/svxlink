@@ -245,10 +245,9 @@ std::uint16_t ReflectorFederation::validateIncomingStream(
       m_library.findRoute(tg);
 
   if ((route == 0) ||
-      (route->scope != "family") ||
-      (route->home != peer))
+      (route->scope != "family"))
   {
-    error = "Talkgroup is not homed on the sending peer";
+    error = "Talkgroup is not configured as a family federation route";
     return FederationProtocol::STREAM_REJECT_POLICY;
   }
 
