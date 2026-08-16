@@ -616,39 +616,57 @@ bool ReflectorFederation::beginLocalStream(
 
 std::size_t ReflectorFederation::sendLocalStreamAudio(
     std::uint32_t tg,
-    const std::vector<std::uint8_t>& audio_data,
-    std::vector<std::string>& sent_peers,
-    std::string& error)
+    const std::vector<std::uint8_t>& audio_data)
 {
-  sent_peers.clear();
-  error.clear();
+  if (!m_enabled || audio_data.empty())
+  {
+    return 0;
+  }
 
-  std::map<std::uint32_t, LocalStream>::const_iterator it =
+  std::map<std::uint32_t, LocalStream>::const_iterator local_it =
       m_local_streams.find(tg);
 
-  if (it == m_local_streams.end())
-  {
-    error = "Talkgroup does not have a local federation stream";
-    return 0;
-  }
-
-  if (audio_data.empty())
-  {
-    error = "Federation audio data is empty";
-    return 0;
-  }
-
-  if (!it->second.export_requested)
+  if ((local_it == m_local_streams.end()) ||
+      !local_it->second.export_requested)
   {
     return 0;
   }
 
-  return sendLocalAudio(
-      tg,
-      it->second.stream_id,
-      audio_data,
-      sent_peers,
-      error);
+  std::size_t handled = 0;
+  std::string peer_error;
+
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    FederationPeerConnection* connection = *it;
+
+    if ((connection == 0) ||
+        !mayExport(connection->peer(), tg))
+    {
+      continue;
+    }
+
+    const FederationPeerConnection::OutgoingStream* stream =
+        connection->findOutgoingStream(tg);
+
+    if ((stream == 0) ||
+        (stream->stream_id != local_it->second.stream_id))
+    {
+      continue;
+    }
+
+    if (connection->sendOutgoingAudio(
+            tg,
+            local_it->second.stream_id,
+            audio_data,
+            peer_error))
+    {
+      ++handled;
+    }
+  }
+
+  return handled;
 } /* ReflectorFederation::sendLocalStreamAudio */
 
 

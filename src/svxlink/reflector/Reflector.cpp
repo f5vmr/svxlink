@@ -1239,24 +1239,9 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
 
               if (m_federation->findLocalStream(tg) != 0)
               {
-                std::vector<std::string> sent_peers;
-                std::string error;
-
                 m_federation->sendLocalStreamAudio(
                     tg,
-                    msg.audioData(),
-                    sent_peers,
-                    error);
-
-                if (!error.empty())
-                {
-                  std::cerr << "*** WARNING["
-                            << client->callsign()
-                            << "]: Could not send local federation audio:"
-                            << " tg=" << tg
-                            << " detail=" << error
-                            << std::endl;
-                }
+                    msg.audioData());
               }
             }
           }

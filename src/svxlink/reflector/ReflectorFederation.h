@@ -258,9 +258,7 @@ class ReflectorFederation
 
     std::size_t sendLocalStreamAudio(
         std::uint32_t tg,
-        const std::vector<std::uint8_t>& audio_data,
-        std::vector<std::string>& sent_peers,
-        std::string& error);
+        const std::vector<std::uint8_t>& audio_data);
 
     std::size_t endLocalStream(
         std::uint32_t tg,
