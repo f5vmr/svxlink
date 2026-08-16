@@ -331,6 +331,10 @@ std::uint16_t ReflectorFederation::startIncomingStream(
   m_incoming_streams[tg] = stream;
   error.clear();
 
+  incomingStreamStarted(
+      tg,
+      source_callsign);
+
   return FederationProtocol::STREAM_ACCEPTED;
 } /* ReflectorFederation::startIncomingStream */
 
@@ -361,7 +365,15 @@ bool ReflectorFederation::stopIncomingStream(
     return false;
   }
 
+  const std::string source_callsign(
+      it->second.source_callsign);
+
   m_incoming_streams.erase(it);
+
+  incomingStreamStopped(
+      tg,
+      source_callsign);
+
   return true;
 } /* ReflectorFederation::stopIncomingStream */
 
@@ -511,8 +523,16 @@ std::size_t ReflectorFederation::removeIncomingStreams(
   {
     if (it->second.peer == peer)
     {
+      const std::uint32_t tg = it->second.tg;
+      const std::string source_callsign(
+          it->second.source_callsign);
+
       it = m_incoming_streams.erase(it);
       ++removed;
+
+      incomingStreamStopped(
+          tg,
+          source_callsign);
     }
     else
     {

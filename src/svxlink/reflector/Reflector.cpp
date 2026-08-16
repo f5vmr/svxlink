@@ -381,6 +381,16 @@ bool Reflector::initialize(Async::Config &cfg)
     return false;
   }
 
+  m_federation->incomingStreamStarted.connect(
+      sigc::mem_fun(
+          *this,
+          &Reflector::onFederationStreamStarted));
+
+  m_federation->incomingStreamStopped.connect(
+      sigc::mem_fun(
+          *this,
+          &Reflector::onFederationStreamStopped));
+
   m_cfg->valueUpdated.connect(sigc::mem_fun(*this, &Reflector::cfgUpdated));
 
   m_federation->startPeerConnections();
@@ -1490,6 +1500,52 @@ void Reflector::onTalkerUpdated(uint32_t tg, ReflectorClient* old_talker,
     }
   }
 } /* Reflector::onTalkerUpdated */
+
+
+void Reflector::onFederationStreamStarted(
+    uint32_t tg,
+    const std::string& source_callsign)
+{
+  broadcastMsg(
+      MsgTalkerStart(tg, source_callsign),
+      ReflectorClient::mkAndFilter(
+          ge_v2_client_filter,
+          ReflectorClient::mkOrFilter(
+              ReflectorClient::TgFilter(tg),
+              ReflectorClient::TgMonitorFilter(tg))));
+
+  if (tg == tgForV1Clients())
+  {
+    broadcastMsg(
+        MsgTalkerStartV1(source_callsign),
+        v1_client_filter);
+  }
+} /* Reflector::onFederationStreamStarted */
+
+
+void Reflector::onFederationStreamStopped(
+    uint32_t tg,
+    const std::string& source_callsign)
+{
+  broadcastMsg(
+      MsgTalkerStop(tg, source_callsign),
+      ReflectorClient::mkAndFilter(
+          ge_v2_client_filter,
+          ReflectorClient::mkOrFilter(
+              ReflectorClient::TgFilter(tg),
+              ReflectorClient::TgMonitorFilter(tg))));
+
+  if (tg == tgForV1Clients())
+  {
+    broadcastMsg(
+        MsgTalkerStopV1(source_callsign),
+        v1_client_filter);
+  }
+
+  broadcastUdpMsg(
+      MsgUdpFlushSamples(),
+      ReflectorClient::TgFilter(tg));
+} /* Reflector::onFederationStreamStopped */
 
 
 void Reflector::httpRequestReceived(Async::HttpServerConnection *con,

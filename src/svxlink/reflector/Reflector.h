@@ -306,6 +306,15 @@ class Reflector : public sigc::trackable
                              void* aad, void *buf, int count);
     void onTalkerUpdated(uint32_t tg, ReflectorClient* old_talker,
                          ReflectorClient *new_talker);
+
+    void onFederationStreamStarted(
+        uint32_t tg,
+        const std::string& source_callsign);
+
+    void onFederationStreamStopped(
+        uint32_t tg,
+        const std::string& source_callsign);
+
     void httpRequestReceived(Async::HttpServerConnection *con,
                              Async::HttpServerConnection::Request& req);
     void httpClientConnected(Async::HttpServerConnection *con);

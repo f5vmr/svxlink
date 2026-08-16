@@ -26,6 +26,7 @@ the Free Software Foundation; either version 2 of the License, or
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <sigc++/sigc++.h>
 #include <string>
 #include <vector>
 
@@ -122,6 +123,13 @@ class ReflectorFederation
       {
       }
     };
+
+    sigc::signal<void(std::uint32_t, const std::string&)>
+        incomingStreamStarted;
+
+    sigc::signal<void(std::uint32_t, const std::string&)>
+        incomingStreamStopped;
+
 
     ReflectorFederation(void);
     ~ReflectorFederation(void);
