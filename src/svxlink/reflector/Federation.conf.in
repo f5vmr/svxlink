@@ -1,38 +1,104 @@
 ###################################################################
 #
-# Optional reflector federation
-# This file is loaded through GLOBAL/CFG_DIR in svxreflector.conf.
-# Federation is disabled unless ENABLE=1.
+# Optional SVXReflector federation
+#
+# Load this file by including its directory through GLOBAL/CFG_DIR
+# in svxreflector.conf. Federation is disabled unless ENABLE=1.
 #
 ###################################################################
 
-[FEDERATION]
-ENABLE=0
-#DOMAIN=
-#REFLECTOR_ID=
-#CALLSIGN=
-#LIBRARY=@SVX_SYSCONF_INSTALL_DIR@/federation.json
-#PEERS=
 
-# Each name in PEERS requires a matching FEDERATION_PEER_<name>
-# section. CALLSIGN is the single local federation identity registered
-# as an authorised V2 client on each remote reflector.
+[FEDERATION]
+
+# Set to 1 to enable federation.
+ENABLE=0
+
+# Administrative federation domain containing this reflector.
+#DOMAIN=UK-WIDE
+
+# Globally unique, stable identity for this reflector.
+# This identity is carried in federation stream messages and must
+# match REFLECTOR_ID in each remote peer's configuration.
+#REFLECTOR_ID=uk-wide.example.org
+
+# Federation access identity used when this reflector authenticates
+# to remote reflectors through the accepted V2 callsign/password
+# challenge-response mechanism.
 #
-# Example:
+# CALLSIGN is the established SVXReflector configuration name. The
+# configured value is an administrator-issued service identity and
+# is not intended to represent an on-air amateur callsign.
 #
-#PEERS=PEER1
+# Each remote reflector must authorise this identity through its
+# normal access configuration and map it to this peer in
+# [FEDERATION_TRUST]. The identity must also satisfy the receiving
+# reflector's configured callsign acceptance rules.
+#CALLSIGN=REFLECTOR-FUK
+
+# JSON routing and peer-policy library.
+#LIBRARY=@SVX_SYSCONF_INSTALL_DIR@/federation.json
+
+# Comma-separated peer names. Each name requires a matching
+# [FEDERATION_PEER_<name>] section below.
+#PEERS=NORTH-AMERICA
+
+
+###################################################################
 #
-#[FEDERATION_PEER_PEER1]
+# Federation peers
+#
+# CONNECT controls only the locally originated outgoing connection.
+# CONNECT=1 makes this reflector connect and reconnect to the peer.
+# CONNECT=0 permits a trusted incoming session without starting a
+# local outgoing connector.
+#
+# For bidirectional traffic, configure the peer on both reflectors
+# and normally set CONNECT=1 at both ends. This creates one
+# independently authenticated session in each direction.
+#
+###################################################################
+
+
+#[FEDERATION_PEER_NORTH-AMERICA]
+
+# Remote reflector hostname or address.
 #HOST=reflector.example.org
-# REFLECTOR_ID defaults to HOST when omitted.
-#REFLECTOR_ID=reflector.example.org
+
+# Expected identity announced by the remote reflector.
+# Defaults to HOST when omitted.
+#REFLECTOR_ID=north-america.example.org
+
+# Remote SVXReflector TCP/UDP service port.
 #PORT=35300
+
+# Federation connections currently use the accepted V2 transport.
 #PROTOCOL=2
+
+# Authentication key for the local CALLSIGN access identity on the
+# remote reflector.
 #AUTH_KEY=change-this-key
+
+# Start and maintain an outgoing connection to this peer.
 #CONNECT=1
 
-# Each configured peer requires exactly one trusted incoming callsign.
-# The callsign must also be authenticated through [USERS] and [PASSWORDS].
+
+###################################################################
 #
+# Trusted incoming federation identities
+#
+# Each configured peer requires exactly one trusted incoming access
+# identity. The identity must also be authorised through the normal
+# reflector access configuration.
+#
+# A trusted identity is accepted as a federation peer only when its
+# federation hello also matches the configured peer name, reflector
+# identity, domain and supported protocol.
+#
+###################################################################
+
+
 #[FEDERATION_TRUST]
-#MYCALL-F1=PEER1
+#REFLECTOR-FNA=NORTH-AMERICA
+#REFLECTOR-FAU=AUSTRALIA
+#REFLECTOR-FYN=YORKSHIRENET
+#REFLECTOR=FUK=UKWIDE
