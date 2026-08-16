@@ -1375,29 +1375,6 @@ void Reflector::udpDatagramReceived(const IpAddress& addr, uint16_t port,
 
       if ((tg > 0) && (client == talker))
       {
-        if ((m_federation != 0) &&
-            m_federation->isEnabled() &&
-            (m_federation->findLocalStream(tg) != 0))
-        {
-          std::vector<std::string> stopped_peers;
-          std::string error;
-
-          m_federation->endLocalStream(
-              tg,
-              stopped_peers,
-              error);
-
-          if (!error.empty())
-          {
-            std::cerr << "*** WARNING["
-                      << client->callsign()
-                      << "]: Could not end local federation stream:"
-                      << " tg=" << tg
-                      << " detail=" << error
-                      << std::endl;
-          }
-        }
-
         TGHandler::instance()->setTalkerForTG(tg, 0);
       }
 
@@ -1463,20 +1440,52 @@ void Reflector::onTalkerUpdated(uint32_t tg, ReflectorClient* old_talker,
 {
   if (old_talker != 0)
   {
-    cout << old_talker->callsign() << ": Talker stop on TG #" << tg << endl;
+    if ((m_federation != 0) &&
+        m_federation->isEnabled() &&
+        (m_federation->findLocalStream(tg) != 0))
+    {
+      std::vector<std::string> stopped_peers;
+      std::string error;
+
+      m_federation->endLocalStream(
+          tg,
+          stopped_peers,
+          error);
+
+      if (!error.empty())
+      {
+        std::cerr << "*** WARNING["
+                  << old_talker->callsign()
+                  << "]: Could not end local federation stream:"
+                  << " tg=" << tg
+                  << " detail=" << error
+                  << std::endl;
+      }
+    }
+
+    cout << old_talker->callsign()
+         << ": Talker stop on TG #" << tg << endl;
+
     old_talker->updateIsTalker();
-    broadcastMsg(MsgTalkerStop(tg, old_talker->callsign()),
+
+    broadcastMsg(
+        MsgTalkerStop(tg, old_talker->callsign()),
         ReflectorClient::mkAndFilter(
-          ge_v2_client_filter,
-          ReflectorClient::mkOrFilter(
-            ReflectorClient::TgFilter(tg),
-            ReflectorClient::TgMonitorFilter(tg))));
+            ge_v2_client_filter,
+            ReflectorClient::mkOrFilter(
+                ReflectorClient::TgFilter(tg),
+                ReflectorClient::TgMonitorFilter(tg))));
+
     if (tg == tgForV1Clients())
     {
-      broadcastMsg(MsgTalkerStopV1(old_talker->callsign()), v1_client_filter);
+      broadcastMsg(
+          MsgTalkerStopV1(old_talker->callsign()),
+          v1_client_filter);
     }
-    broadcastUdpMsg(MsgUdpFlushSamples(),
-          ReflectorClient::mkAndFilter(
+
+    broadcastUdpMsg(
+        MsgUdpFlushSamples(),
+        ReflectorClient::mkAndFilter(
             ReflectorClient::TgFilter(tg),
             ReflectorClient::ExceptFilter(old_talker)));
   }
