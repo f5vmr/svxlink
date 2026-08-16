@@ -309,6 +309,73 @@ bool FederationPeerConnection::stopOutgoingStream(
 } /* FederationPeerConnection::stopOutgoingStream */
 
 
+bool FederationPeerConnection::sendOutgoingAudio(
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    const std::vector<std::uint8_t>& audio_data,
+    std::string& error)
+{
+  error.clear();
+
+  if (!isConnected())
+  {
+    error = "Federation peer is not connected";
+    return false;
+  }
+
+  if (!isUdpRegistered())
+  {
+    error = "Federation peer UDP path is not registered";
+    return false;
+  }
+
+  std::map<std::uint32_t, OutgoingStream>::iterator it =
+      m_outgoing_streams.find(tg);
+
+  if (it == m_outgoing_streams.end())
+  {
+    error = "Outgoing federation stream does not exist";
+    return false;
+  }
+
+  if (stream_id == 0)
+  {
+    error = "Stream ID zero is invalid";
+    return false;
+  }
+
+  if (it->second.stream_id != stream_id)
+  {
+    error = "Outgoing federation stream identity does not match";
+    return false;
+  }
+
+  if (it->second.state != OUTGOING_STREAM_ACTIVE)
+  {
+    error = "Outgoing federation stream is not active";
+    return false;
+  }
+
+  if (audio_data.empty())
+  {
+    error = "Federation audio data is empty";
+    return false;
+  }
+
+  MsgUdpFederationAudio msg(
+      m_local_reflector_id,
+      tg,
+      stream_id,
+      it->second.next_audio_sequence,
+      audio_data);
+
+  sendUdpMsg(msg);
+  ++it->second.next_audio_sequence;
+
+  return true;
+} /* FederationPeerConnection::sendOutgoingAudio */
+
+
 /****************************************************************************
  *
  * Private member functions

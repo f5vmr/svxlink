@@ -97,11 +97,13 @@ class FederationPeerConnection : public sigc::trackable
       std::string         source_callsign;
       std::string         codec;
       OutgoingStreamState state;
+      std::uint32_t       next_audio_sequence;
 
       OutgoingStream(void)
         : tg(0),
           stream_id(0),
-          state(OUTGOING_STREAM_PENDING)
+          state(OUTGOING_STREAM_PENDING),
+          next_audio_sequence(0)
       {
       }
     };
@@ -147,6 +149,12 @@ class FederationPeerConnection : public sigc::trackable
     bool stopOutgoingStream(
         std::uint32_t tg,
         std::uint64_t stream_id,
+        std::string& error);
+
+    bool sendOutgoingAudio(
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        const std::vector<std::uint8_t>& audio_data,
         std::string& error);
 
     const OutgoingStream* findOutgoingStream(
