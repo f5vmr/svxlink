@@ -524,6 +524,123 @@ std::size_t ReflectorFederation::removeIncomingStreams(
 } /* ReflectorFederation::removeIncomingStreams */
 
 
+std::size_t ReflectorFederation::startLocalStream(
+    std::uint32_t tg,
+    std::uint64_t stream_id,
+    const std::string& source_callsign,
+    const std::string& codec,
+    std::vector<std::string>& started_peers,
+    std::string& error)
+{
+  started_peers.clear();
+  error.clear();
+
+  if (!m_enabled)
+  {
+    error = "Federation is disabled";
+    return 0;
+  }
+
+  if (tg == 0)
+  {
+    error = "Talkgroup zero is not a valid federation stream";
+    return 0;
+  }
+
+  if (stream_id == 0)
+  {
+    error = "Stream ID zero is invalid";
+    return 0;
+  }
+
+  if (source_callsign.empty())
+  {
+    error = "Stream source callsign is missing";
+    return 0;
+  }
+
+  if (codec != "OPUS")
+  {
+    error = "Only OPUS federation streams are supported";
+    return 0;
+  }
+
+  std::size_t policy_matches = 0;
+  std::size_t ready_matches = 0;
+  std::string last_error;
+
+  for (std::vector<FederationPeerConnection*>::iterator
+           it=m_peer_connections.begin();
+       it!=m_peer_connections.end(); ++it)
+  {
+    FederationPeerConnection* connection = *it;
+
+    if ((connection == 0) ||
+        !mayExport(connection->peer(), tg))
+    {
+      continue;
+    }
+
+    ++policy_matches;
+
+    if (!connection->isConnected() ||
+        !connection->isUdpRegistered())
+    {
+      continue;
+    }
+
+    ++ready_matches;
+
+    std::string peer_error;
+    if (connection->startOutgoingStream(
+            tg,
+            stream_id,
+            source_callsign,
+            codec,
+            peer_error))
+    {
+      started_peers.push_back(connection->peer());
+    }
+    else
+    {
+      last_error = peer_error;
+
+      std::cerr << "*** WARNING: Federation peer "
+                << connection->peer()
+                << ": Could not start local stream:"
+                << " tg=" << tg
+                << " stream_id=" << stream_id
+                << " detail=" << peer_error
+                << std::endl;
+    }
+  }
+
+  if (!started_peers.empty())
+  {
+    return started_peers.size();
+  }
+
+  if (policy_matches == 0)
+  {
+    error = "Talkgroup is denied by federation export policy";
+  }
+  else if (ready_matches == 0)
+  {
+    error = "No permitted federation peer is connected and UDP registered";
+  }
+  else if (!last_error.empty())
+  {
+    error = last_error;
+  }
+  else
+  {
+    error = "No federation peer accepted the local stream request";
+  }
+
+  return 0;
+} /* ReflectorFederation::startLocalStream */
+
+
 FederationPeerConnection* ReflectorFederation::peerConnection(
     const std::string& peer) const
 {

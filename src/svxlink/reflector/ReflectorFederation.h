@@ -232,6 +232,14 @@ class ReflectorFederation
       return m_enabled && m_library.mayExport(peer, tg);
     }
 
+    std::size_t startLocalStream(
+        std::uint32_t tg,
+        std::uint64_t stream_id,
+        const std::string& source_callsign,
+        const std::string& codec,
+        std::vector<std::string>& started_peers,
+        std::string& error);
+
     std::size_t outgoingConnectionCount(void) const
     {
       return m_peer_connections.size();
