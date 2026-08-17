@@ -90,9 +90,9 @@ ENABLE=0
 # administration. [FEDERATION_TRUST] then grants that accepted
 # identity the federation privileges of the named peer.
 
-
+# Example trusted identities for a UK-WIDE reflector:
+#
 #[FEDERATION_TRUST]
 #REFLECTOR-FNA=NORTH-AMERICA
 #REFLECTOR-FAU=AUSTRALIA
 #REFLECTOR-FYN=YORKSHIRENET
-#REFLECTOR=FUK=UKWIDE
