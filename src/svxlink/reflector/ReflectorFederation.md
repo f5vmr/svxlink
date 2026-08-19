@@ -357,97 +357,199 @@ remotely installed by the current implementation.
 
 ## Federation configuration builder
 
-`svx_federation_builder.py` is installed with SVXReflector to provide a
-repeatable per-reflector planning and configuration workflow. It creates and
-validates a planning JSON file and generates the corresponding
-`Federation.conf` and federation library.
+`svx_federation_builder.py` is installed with SVXReflector as an interactive
+planning and policy administration tool. It creates a separate planning JSON
+for each reflector and generates the corresponding `Federation.conf` and
+federation policy library.
 
-The planning file is the administrator's editable source of truth. It records
-the reflector, peers, talkgroups and distribution decisions, but deliberately
-does not store authentication keys.
+The planning JSON is the administrator's editable source of truth. It contains
+reflector identities, peer definitions, talkgroup ownership and two-way sharing
+decisions, but deliberately contains no authentication keys.
 
-The builder supports three commands:
+The builder never installs files into `/etc`, edits an installed
+`Federation.conf`, or restarts SVXReflector.
+
+The supported commands are:
 
 ```text
 svx_federation_builder.py new PLAN
+svx_federation_builder.py edit PLAN [--output DIRECTORY]
+svx_federation_builder.py show PLAN
 svx_federation_builder.py check PLAN
 svx_federation_builder.py build PLAN [--output DIRECTORY] [--placeholders]
+svx_federation_builder.py library PLAN [--output DIRECTORY]
 ```
 
-### Create a reflector plan
+### Administrative model
 
-Run the interactive questionnaire once for each reflector:
+Every reflector has its own plan and evaluates policy locally. Peer
+relationships are explicitly bilateral: technical reachability or membership
+of the same network family does not grant permission to federate.
+
+Adding a peer to one reflector does not add it to any other reflector. A
+manager should enter peer information only after the two participating
+managers have agreed the direct relationship and the information may be used
+for that deployment.
+
+Talkgroups shared through this builder are always two-way. A selected peer is
+added to both the runtime `import` and `export` policy for the talkgroup. The
+corresponding peer must independently configure the reciprocal permission.
+
+Federation remains non-transitive. Imported streams are never re-exported, so
+two reflectors that need to exchange a talkgroup must have an approved direct
+relationship. A genuinely family-wide talkgroup requires direct relationships
+between every pair of participating reflectors expected to hear one another.
+
+### Create a new reflector plan
+
+Run the staged questionnaire once for each reflector:
 
 ```sh
-svx_federation_builder.py new UK-TEST-plan.json
+svx_federation_builder.py new GREAT-BRITAIN-plan.json
 ```
 
-The questionnaire requests:
+The `new` command refuses to overwrite an existing plan. If the named file
+already exists, use `edit` instead.
 
-- the local federation `DOMAIN`;
-- the stable and globally unique local `REFLECTOR_ID`;
-- the federation access `CALLSIGN` used for outgoing authentication;
-- the installed federation library path;
-- whether the generated configuration should initially use `ENABLE=1`;
-- each peer's name, host, expected reflector ID, port and protocol;
-- whether an outgoing connector should be maintained for each peer;
-- the trusted incoming federation identity assigned to each peer;
-- the talkgroups and their administrative and distribution policy;
-- the initial federation library generation.
+The questionnaire has three stages:
 
-The default safety state is `ENABLE=0`. Leave federation disabled until the
-generated files, peer authentication and reciprocal trust configuration have
-been reviewed.
+1. local reflector identity;
+2. approved direct federation peers;
+3. talkgroup policy.
 
-Peer names are converted to uppercase by the questionnaire. They must match
-the peer names used in the generated policy and in the remote deployment
-plans.
+Administrative identifiers such as the domain, federation login identities
+and peer names are converted to uppercase. DNS hostnames and paths retain the
+case entered by the administrator.
 
-Each talkgroup records:
+#### Local reflector identity
 
-- `tg`: the positive integer talkgroup number;
-- `description`: the service or talkgroup description;
-- `ownership`: `domain`, `peer` or `network-wide`;
-- `home`: its administrative home domain or peer;
-- `distribution`: `local`, `selected-peers` or `network-wide`;
-- `service_anchor`: optional network or gateway identity metadata;
-- `allstar_node`: an optional associated AllStar node number;
-- `import_from`: peers permitted to originate this talkgroup locally;
-- `export_to`: peers to which locally originated audio may be sent.
+The local questions record:
 
-The ownership field records administrative responsibility. It does not grant
-transport permission. Import and export permission is determined independently
-from `import_from` and `export_to`.
+- the administrative federation domain, for example `GREAT-BRITAIN`;
+- the permanent federation service DNS hostname;
+- the dedicated outgoing federation login identity;
+- the final installed policy path;
+- the initial enabled state for a generated configuration.
 
-A `local` talkgroup has no peer permissions and is not emitted as a federated
-route. For `selected-peers`, the administrator chooses the import and export
-peers individually. For `network-wide`, all configured peers are offered as
-the default import and export selection, which may still be edited during the
-questionnaire.
+The federation service hostname is used as the local `REFLECTOR_ID`. It is the
+hostname of the SVXReflector service, not a public website URL. For example, a
+reflector may use `uk.wide.svxlink.uk` as its federation service hostname while
+publishing a dashboard at a different web address.
 
-The builder currently creates exact numeric routes. Prefix routes supported by
-the runtime library must be written and administered separately.
+The outgoing federation identity is a reflector service account, not the
+callsign of an amateur originating talkgroup audio. An example Great Britain
+identity is `REFLECTOR-FGB`. It must be registered and accepted by every
+receiving reflector and assigned to the correct peer in that reflector's
+`[FEDERATION_TRUST]` section.
+
+The standard policy installation path is:
+
+```text
+/etc/svxlink/federation.json
+```
+
+The initial safety default is `ENABLE=0`. The setting takes effect only after
+the generated file is reviewed, installed and SVXReflector is restarted.
+
+#### Direct peers
+
+A peer is another approved federation-enabled SVXReflector with which this
+reflector may exchange traffic directly. Before accepting a new peer, the
+questionnaire asks the administrator to confirm that the remote manager has
+approved the relationship.
+
+For each peer, the plan records:
+
+- an uppercase policy name such as `NORTH-AMERICA`;
+- the remote federation service DNS hostname;
+- the remote TCP/UDP service port;
+- whether this reflector maintains an outgoing connector;
+- the incoming federation login identity used by that peer.
+
+The remote federation service hostname is written as both `HOST` and the
+expected remote `REFLECTOR_ID`. It must not be a website URL or include an
+`https://` prefix or page path.
+
+Federation connections currently use the established protocol 2 callsign and
+password authentication path. The builder records `PROTOCOL=2` without asking
+the administrator to select an unsupported alternative. This does not remove
+the protocol 3 and X.509 capabilities of the installed SVXReflector software.
+
+For bidirectional transport, each reflector normally maintains its own
+outgoing connection to the other. `CONNECT=0` accepts the approved incoming
+relationship without starting a local outgoing connector.
+
+The incoming login identity is the service account presented by the remote
+reflector when it connects locally. It is mapped to the peer name under
+`[FEDERATION_TRUST]` and must already be registered and authenticated locally.
+
+The completed peer list is displayed for confirmation before talkgroup entry
+begins. Talkgroup ownership and sharing choices use this fixed list.
+
+#### Talkgroup policy
+
+Unlisted talkgroups remain local by default and cannot be imported or
+exported. An administrator may also record a talkgroup explicitly as local;
+it remains in the plan but is not emitted as a federation route.
+
+The builder creates exact positive integer routes. Prefix routes supported by
+the runtime library must currently be administered separately.
+
+Each entered talkgroup records:
+
+- its number and human-readable description;
+- administrative ownership and home;
+- its distribution class;
+- the approved peers sharing it in both directions.
+
+Administrative ownership has three choices:
+
+- `domain`: administered by the local federation domain;
+- `peer`: administered by one configured remote peer;
+- `network-wide`: a family service not assigned to one regional domain.
+
+For domain-owned and network-wide talkgroups, the administrative home is
+assigned automatically. For peer-owned talkgroups, the administrator selects
+the responsible peer from the configured list.
+
+Ownership does not grant transport permission. For example, TG 310 may be
+peer-owned by `NORTH-AMERICA` in the Great Britain plan while still permitting
+Great Britain users to participate through an approved two-way policy.
+
+Distribution has three administrator-facing choices:
+
+- local only;
+- selected approved peers;
+- all approved peers in this plan.
+
+The internal value for the third choice remains `network-wide`. It means all
+peers explicitly configured and approved in this local plan, not every current
+or future member of the wider network family. A newly added peer is never
+inserted into existing talkgroup policy automatically.
+
+The same selected peer list is stored in `import_from` and `export_to`.
+Validation rejects a manually edited plan whose two lists differ.
 
 ### Planning JSON structure
 
-The `new` command writes a JSON object with this overall structure:
+A new plan starts at generation 1. Its overall structure is:
 
 ```json
 {
   "plan_schema": 1,
   "library_generation": 1,
   "reflector": {
-    "domain": "UK-TEST",
-    "reflector_id": "uk-test.example.org",
-    "callsign": "REFLECTOR-FUK",
+    "domain": "GREAT-BRITAIN",
+    "reflector_id": "uk.wide.svxlink.uk",
+    "callsign": "REFLECTOR-FGB",
     "library": "/etc/svxlink/federation.json",
     "enable": false
   },
   "peers": [
     {
       "name": "NORTH-AMERICA",
-      "host": "reflector.example.org",
-      "reflector_id": "north-america.example.org",
+      "host": "na.example.org",
+      "reflector_id": "na.example.org",
       "port": 35300,
       "protocol": 2,
       "connect": true,
@@ -456,13 +558,11 @@ The `new` command writes a JSON object with this overall structure:
   ],
   "talkgroups": [
     {
-      "tg": 91,
-      "description": "Network-wide calling",
-      "ownership": "network-wide",
-      "home": "NETWORK-WIDE",
-      "distribution": "network-wide",
-      "service_anchor": "Network-wide service",
-      "allstar_node": "",
+      "tg": 235,
+      "description": "UK-wide calling",
+      "ownership": "domain",
+      "home": "GREAT-BRITAIN",
+      "distribution": "selected-peers",
       "import_from": [
         "NORTH-AMERICA"
       ],
@@ -474,154 +574,210 @@ The `new` command writes a JSON object with this overall structure:
 }
 ```
 
-This example illustrates the format only. Reflector identities, hostnames,
-trust identities and policy must be assigned for the actual deployment.
+The example identities and hostnames illustrate the format only. Actual peer
+information must be agreed by the participating managers. Authentication keys
+must never be added to the planning JSON.
 
-Authentication keys must not be added to the planning JSON.
+### Display and validate a plan
 
-### Validate a plan
-
-Validate the plan after creating or manually editing it:
+Display a readable summary without changing any file:
 
 ```sh
-svx_federation_builder.py check UK-TEST-plan.json
+svx_federation_builder.py show GREAT-BRITAIN-plan.json
 ```
 
-Validation rejects, among other errors:
+The summary lists the domain, reflector, generation, peers, talkgroups,
+administrative homes and two-way sharing relationships.
 
-- a wrong planning schema;
-- missing reflector identity fields;
-- invalid or duplicate peer definitions;
-- duplicate talkgroups;
-- invalid talkgroup ownership or distribution values;
-- references to unknown peers;
-- peer permissions assigned to a local talkgroup;
-- invalid ports or library generations.
+Validate a plan after creation or manual editing:
 
-Warnings identify configurations that are valid but deserve administrative
-review, such as a federated talkgroup with no peer permissions, a non-standard
-protocol value or a network-wide talkgroup without a service anchor.
+```sh
+svx_federation_builder.py check GREAT-BRITAIN-plan.json
+```
 
-A successful check reports the number of peers, talkgroups and federated
-routes that will be emitted.
+Validation rejects missing identities, duplicate peers or talkgroups, invalid
+ports, unknown peer references, asymmetric import/export policy, local
+talkgroups with peer permissions and peer-owned talkgroups whose home is not a
+configured peer.
 
-### Generate the deployment files
+### Create the initial deployment files
 
-Generate the files beneath the default `generated` directory:
+Generate an initial configuration and runtime library:
 
 ```sh
 svx_federation_builder.py build \
-  UK-TEST-plan.json
+  GREAT-BRITAIN-plan.json \
+  --output generated
 ```
 
-For each outgoing peer, the command privately requests its `AUTH_KEY` using a
-non-echoing terminal prompt. Authentication keys are written only to the
-generated `Federation.conf`; they are not added to the planning JSON.
+For each outgoing peer, the builder privately requests its `AUTH_KEY` through
+a non-echoing terminal prompt. Keys are written only to the generated
+`Federation.conf` and never to the plan.
 
 For unattended preparation, placeholders may be requested explicitly:
 
 ```sh
 svx_federation_builder.py build \
-  UK-TEST-plan.json \
+  GREAT-BRITAIN-plan.json \
+  --output generated \
   --placeholders
 ```
 
-This writes `CHANGE_ME` for every authentication key and prints a warning.
-A configuration containing `CHANGE_ME` is not ready for deployment.
+This writes `CHANGE_ME` for every key. Such a configuration is not ready for
+deployment.
 
-An alternative output root may be selected:
+For a `GREAT-BRITAIN` domain, initial output is:
+
+```text
+generated/GREAT-BRITAIN/Federation.conf
+generated/GREAT-BRITAIN/federation.json
+```
+
+`Federation.conf` is created with mode `0600`; `federation.json` is created
+with mode `0644`. `build` refuses to replace either existing output file and
+instructs the administrator to select another output directory.
+
+### Review and edit an existing plan
+
+Open the interactive editor with:
 
 ```sh
-svx_federation_builder.py build \
-  UK-TEST-plan.json \
+svx_federation_builder.py edit \
+  GREAT-BRITAIN-plan.json \
   --output generated
 ```
 
-For a domain named `UK-TEST`, the generated files are:
+The editor first presents the current reflector, peer and talkgroup policy. It
+provides separate menus for:
+
+- adding, removing or changing talkgroups;
+- changing the approved peers sharing a talkgroup;
+- adding, removing or changing peer definitions;
+- reviewing local reflector details;
+- displaying the proposed JSON changes;
+- saving or exiting without changes.
+
+Adding a peer never shares existing talkgroups with it automatically. The
+administrator must add the new peer deliberately to each agreed talkgroup.
+
+Removing a peer lists every affected talkgroup before confirmation and removes
+that peer from their two-way sharing lists. If a talkgroup has no remaining
+peer, it becomes local.
+
+Before saving, the builder validates the proposed plan, displays a unified
+diff and asks for final confirmation. On approval it:
+
+1. writes a timestamped backup beside the existing plan;
+2. increments `library_generation` automatically;
+3. atomically replaces the planning JSON;
+4. creates a generation-numbered candidate policy;
+5. leaves all installed files unchanged.
+
+Example output for generation 4 is:
 
 ```text
-generated/UK-TEST/Federation.conf
-generated/UK-TEST/federation.json
+GREAT-BRITAIN-plan.json.20260819-104500.bak
+generated/GREAT-BRITAIN/federation-generation-4.json
 ```
 
-`Federation.conf` is written with mode `0600` because it contains authentication
-keys. `federation.json` is written with mode `0644`. Both files are replaced
-atomically when regenerated.
+If a peer was added or changed, the editor also writes a mode `0600`
+peer-specific configuration snippet such as:
 
-The generated library contains only non-local exact routes. Every emitted
-route has `scope` set to `family`, and the peer import and export lists are
-constructed from the plan's talkgroup permissions.
+```text
+generated/GREAT-BRITAIN/peer-AUSTRALIA.conf
+```
 
-### Review and install
+The administrator merges this snippet into the installed `Federation.conf`
+and supplies the correct `AUTH_KEY`. Existing credentials are never collected
+or rewritten by the editor.
 
-Inspect every generated file before installation:
+If a peer was removed, the editor writes a removal checklist such as:
+
+```text
+generated/GREAT-BRITAIN/remove-peer-AUSTRALIA.txt
+```
+
+It identifies the `PEERS` entry, peer section and trust mapping that must be
+removed manually. The builder never edits the installed configuration.
+
+### Generate a versioned policy candidate
+
+Generate a policy from an unchanged valid plan without producing
+`Federation.conf`:
+
+```sh
+svx_federation_builder.py library \
+  GREAT-BRITAIN-plan.json \
+  --output generated
+```
+
+For generation 4 this creates:
+
+```text
+generated/GREAT-BRITAIN/federation-generation-4.json
+```
+
+The command refuses to replace an existing candidate of the same generation.
+Increment the generation only when making a deliberate policy revision.
+
+### Review and install generated files
+
+Inspect a candidate before installation:
+
+```sh
+python3 -m json.tool \
+  generated/GREAT-BRITAIN/federation-generation-4.json
+
+diff -u \
+  /etc/svxlink/federation.json \
+  generated/GREAT-BRITAIN/federation-generation-4.json
+```
+
+For an initial deployment, inspect the generated configuration and modes:
 
 ```sh
 sed -n '1,240p' \
-  generated/UK-TEST/Federation.conf
-
-python3 -m json.tool \
-  generated/UK-TEST/federation.json
+  generated/GREAT-BRITAIN/Federation.conf
 
 stat -c '%a %n' \
-  generated/UK-TEST/Federation.conf \
-  generated/UK-TEST/federation.json
+  generated/GREAT-BRITAIN/Federation.conf \
+  generated/GREAT-BRITAIN/federation.json
 ```
 
-Confirm that:
+Confirm that all identities, hostnames, ports, trust mappings, two-way
+talkgroup permissions and authentication keys are correct. No `CHANGE_ME`
+value may remain in a deployed configuration.
 
-- the local domain, reflector ID and service identity are correct;
-- every peer name exactly matches its policy name;
-- every expected remote reflector ID, host and port is correct;
-- each outgoing authentication key belongs to the local service identity on
-  that specific remote reflector;
-- every incoming trusted identity is registered locally and maps to the
-  intended peer;
-- import and export permissions are intentional;
-- no `CHANGE_ME` value remains;
-- the library path in `Federation.conf` matches the installation path.
+Install reviewed files deliberately using the required permissions. For a
+policy-only revision:
 
-Install the reviewed files using explicit permissions:
+```sh
+sudo install \
+  -o root \
+  -g root \
+  -m 644 \
+  generated/GREAT-BRITAIN/federation-generation-4.json \
+  /etc/svxlink/federation.json
+```
+
+For an initial configuration:
 
 ```sh
 sudo install \
   -o root \
   -g root \
   -m 600 \
-  generated/UK-TEST/Federation.conf \
+  generated/GREAT-BRITAIN/Federation.conf \
   /etc/svxlink/svxreflector.d/Federation.conf
-
-sudo install \
-  -o root \
-  -g root \
-  -m 644 \
-  generated/UK-TEST/federation.json \
-  /etc/svxlink/federation.json
 ```
 
-Do not enable or restart a production reflector until the reciprocal peer
-authentication, trust mappings and policies have been prepared and checked.
+Do not restart a production reflector until reciprocal authentication, trust
+and talkgroup policy have been agreed and prepared at every affected peer.
 
-### Updating a deployment
-
-Retain the planning JSON as the deployment record for that reflector. When a
-peer or talkgroup policy changes:
-
-1. edit the appropriate plan;
-2. increment `library_generation`;
-3. run `check`;
-4. run `build`;
-5. review both generated files;
-6. install them using the required ownership and modes;
-7. restart the reflector during an approved maintenance period.
-
-Use a separate plan for every reflector because identities, connection
-directions, trust mappings and import/export policy are evaluated locally.
-
-Planning files may be retained in a private administrative repository if they
-contain no locally sensitive site information. Generated `Federation.conf`
-files and authentication keys must never be committed to the SvxLink source
-repository.
+Use a separate plan for every reflector. Planning files may be retained in a
+private administrative repository when appropriate. Generated
+`Federation.conf` files, peer snippets and authentication keys must never be
+committed to the SvxLink source repository.
 
 ## Locally originated streams
 
