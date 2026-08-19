@@ -60,7 +60,9 @@ install_if_not_exists(${CMAKE_CURRENT_BINARY_DIR}/Federation.conf
   ${SVX_SYSCONF_INSTALL_DIR}/svxreflector.d
   )
 install_if_not_exists(ca-hook.yaml ${SVX_SYSCONF_INSTALL_DIR})
-install(PROGRAMS svxreflector-status
+install(PROGRAMS
+  svxreflector-status
+  svx_federation_builder.py
   DESTINATION ${BIN_INSTALL_DIR}
   )
 install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/ca-hook.py
