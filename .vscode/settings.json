@@ -1,3 +1,4 @@
 {
-    "idf.pythonInstallPath": "/usr/bin/python3"
+    "idf.pythonInstallPath": "/usr/bin/python3",
+    "cmake.sourceDirectory": "/Users/chris_anne/VS_Git/svxlink/src"
 }
