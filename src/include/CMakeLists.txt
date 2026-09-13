@@ -22,15 +22,10 @@ foreach(version ${versions})
   endif(ver_name MATCHES ^LIB)
 endforeach(version)
 
-execute_process(
-    COMMAND git describe --tags --abbrev=0
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    OUTPUT_VARIABLE PROJECT_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    ERROR_QUIET)
-if("${PROJECT_VERSION}" STREQUAL "")
-  set(PROJECT_VERSION "${VER_PROJECT}")
-endif()
+# Use the release version declared in the versions file.
+# Git tags may contain platform and packaging identifiers, so they must not
+# determine the version embedded in SvxLink executables.
+set(PROJECT_VERSION "${VER_PROJECT}")
 set(PROJECT_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)
 
 foreach(version ${versions})
