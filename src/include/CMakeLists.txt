@@ -22,10 +22,9 @@ foreach(version ${versions})
   endif(ver_name MATCHES ^LIB)
 endforeach(version)
 
-# Use the release version declared in the versions file.
-# Git tags may contain platform and packaging identifiers, so they must not
-# determine the version embedded in SvxLink executables.
-set(PROJECT_VERSION "${VER_PROJECT}")
+# Use the numeric release version resolved by the parent CMakeLists.txt.
+# Preserve the individual component versions from the versions file.
+set(PROJECT_VERSION "${svxlink_VERSION}")
 set(PROJECT_VERSION "${PROJECT_VERSION}" PARENT_SCOPE)
 
 foreach(version ${versions})
