@@ -1,0 +1,281 @@
+= Building a SvxLink Debian Package on Raspberry Pi OS
+
+These instructions describe how to build a SvxLink server Debian package locally on a supported Raspberry Pi.
+
+The source in this repository is based on the official https://github.com/sm0svx/svxlink[SvxLink repository maintained by Tobias Blömberg, SM0SVX]. This fork contains packaging-related changes and other additions maintained for the packages published by Chris Jackson, G4NAB.
+
+The package build obtains its release version from `src/versions`, determines the Debian architecture of the build system and generates a package with the appropriate dependencies.
+
+For authoritative SvxLink configuration and operating information, refer to the https://github.com/sm0svx/svxlink/wiki[official SvxLink wiki] and the manual pages installed with SvxLink:
+
+## [source,shell]
+
+man svxlink
+man svxlink.conf
+----------------
+
+== Prepare Raspberry Pi OS
+
+Install a current version of Raspberry Pi OS Lite suitable for the Raspberry Pi being used:
+
+* Raspberry Pi OS Lite 64-bit for a Raspberry Pi Zero 2 W or later supported 64-bit model.
+* Raspberry Pi OS Lite 32-bit for a Raspberry Pi Zero W, Raspberry Pi 2 or another supported 32-bit model.
+
+Raspberry Pi Imager can configure the hostname, user account, password, SSH access and wireless network before writing the operating-system image.
+
+After first boot, complete any required hardware or regional configuration:
+
+## [source,shell]
+
+## sudo raspi-config
+
+Before building SvxLink, update the operating system and reboot:
+
+## [source,shell]
+
+sudo apt-get update
+sudo apt-get upgrade --yes
+sudo reboot
+-----------
+
+Reconnect to the Raspberry Pi after it has restarted.
+
+== Install the Build Dependencies
+
+The following package list is intended for Raspberry Pi OS based on Debian 12 Bookworm or Debian 13 Trixie:
+
+## [source,shell]
+
+sudo apt-get update
+
+sudo apt-get install --yes 
+build-essential 
+cmake 
+file 
+git 
+pkg-config 
+libsigc++-2.0-dev 
+libgsm1-dev 
+libpopt-dev 
+tcl-dev 
+libgcrypt20-dev 
+libspeex-dev 
+libasound2-dev 
+libopus-dev 
+librtlsdr-dev 
+libcurl4-openssl-dev 
+libjsoncpp-dev 
+libgpiod-dev 
+libssl-dev 
+ladspa-sdk 
+doxygen 
+groff 
+alsa-utils 
+vorbis-tools 
+curl 
+rtl-sdr
+-------
+
+The `file` utility is required by CPack when it analyses the shared-library dependencies of the generated Debian package.
+
+== Create the SvxLink System User
+
+If the `svxlink` system user does not already exist, create it:
+
+## [source,shell]
+
+id svxlink 2>/dev/null ||
+sudo useradd 
+--system 
+--user-group 
+--shell /usr/sbin/nologin 
+svxlink
+-------
+
+Add the user only to supplementary groups that exist on the build system:
+
+## [source,shell]
+
+for group in audio plugdev dialout gpio
+do
+if getent group "$group" >/dev/null
+then
+sudo usermod 
+--append 
+--groups "$group" 
+svxlink
+fi
+done
+----
+
+Confirm the resulting account and group membership:
+
+## [source,shell]
+
+## id svxlink
+
+The `gpio` group normally exists on Raspberry Pi OS but may not exist on a Debian PC or NanoPi Neo. GPIO access on those platforms must be configured according to the device's GPIO controller, udev rules and local group policy.
+
+== Download and Build SvxLink
+
+Clone this repository using an ordinary user account:
+
+## [source,shell]
+
+git clone https://github.com/f5vmr/svxlink.git
+
+cd svxlink
+
+mkdir -p src/build
+
+## cd src/build
+
+Configure the build:
+
+## [source,shell]
+
+cmake 
+-DUSE_QT=OFF 
+-DCMAKE_INSTALL_PREFIX=/usr 
+-DSYSCONF_INSTALL_DIR=/etc 
+-DLOCAL_STATE_DIR=/var 
+-DWITH_SYSTEMD=ON 
+-DCPACK_GENERATOR=DEB 
+..
+--
+
+Compile SvxLink, generate its documentation and create the Debian package:
+
+## [source,shell]
+
+## make -j"$(nproc)" all doc package
+
+Do not use `sudo` for the configuration, compilation or package-generation commands.
+
+The generated package will use the standard Debian filename format:
+
+## [source,text]
+
+## svxlink_<version>_<architecture>.deb
+
+Examples include:
+
+## [source,text]
+
+svxlink_26.05.1_armhf.deb
+svxlink_26.05.1_arm64.deb
+svxlink_26.05.1_amd64.deb
+-------------------------
+
+The actual filename depends on the release and the Debian architecture of the build system.
+
+== Verify the Package
+
+Identify the generated package:
+
+## [source,shell]
+
+ls -l 
+svxlink_*.deb
+-------------
+
+Inspect its package metadata:
+
+## [source,shell]
+
+dpkg-deb 
+--field 
+svxlink_*.deb 
+Package 
+Version 
+Architecture 
+Depends
+-------
+
+Record its exact size and SHA-256 digest:
+
+## [source,shell]
+
+stat 
+--format='%n %s bytes' 
+svxlink_*.deb
+
+sha256sum 
+svxlink_*.deb
+-------------
+
+== Install the Package
+
+Install the generated package directly with APT:
+
+## [source,shell]
+
+sudo apt-get install 
+./svxlink_*.deb
+---------------
+
+Verify the installation:
+
+## [source,shell]
+
+dpkg-query -W 
+-f='${Package}\t${Version}\t${Architecture}\t${Status}\n' 
+svxlink
+
+/usr/bin/svxlink 
+--version
+---------
+
+For release 26.05.1, the executable version should be:
+
+## [source,text]
+
+## 1.10.1@26.05.1
+
+The embedded version must not contain an operating-system or processor-architecture label.
+
+== Install a Sound Package
+
+Choose the required language and install only that sound repository.
+
+=== British English
+
+## [source,shell]
+
+cd /usr/share/svxlink/sounds
+
+sudo git clone 
+https://github.com/f5vmr/en_GB.git
+----------------------------------
+
+=== American English
+
+## [source,shell]
+
+cd /usr/share/svxlink/sounds
+
+sudo git clone 
+https://github.com/f5vmr/en_US.git
+----------------------------------
+
+=== Australian English
+
+## [source,shell]
+
+cd /usr/share/svxlink/sounds
+
+sudo git clone 
+https://github.com/f5vmr/en_AU.git
+----------------------------------
+
+== Installation Complete
+
+SvxLink is now installed. Continue with the https://github.com/sm0svx/svxlink/wiki[official SvxLink documentation] for configuration and operating information.
+
+Additional project information is available at [https://g4nab.co.uk[g4nab.co.uk](https://g4nab.co.uk[g4nab.co.uk)].
+
+== Attribution
+
+SvxLink is created and maintained by Tobias Blömberg, SM0SVX.
+
+The `f5vmr/svxlink` repository is a derivative fork containing packaging changes and other additions maintained by Chris Jackson, G4NAB. The underlying SvxLink project and its authoritative documentation remain the work of Tobias Blömberg and the upstream SvxLink contributors.
