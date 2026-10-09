@@ -22,17 +22,23 @@
 # Project setup
 ##############################################################################
 cmake_minimum_required(VERSION 3.7...3.30)
-# Read the release version from the top-level "versions" file
+# Determine the numeric SvxLink release version.
+# Official release tags use numeric names such as 26.05.2.
+# Development branches may use PROJECT=master.
+
+set(SVXLINK_PACKAGE_VERSION "" CACHE STRING
+    "Override the SvxLink Debian package version")
+
 file(
   STRINGS
   "${CMAKE_CURRENT_LIST_DIR}/versions"
   SVXLINK_VERSION_LINE
-  REGEX "^PROJECT=[0-9]+\\.[0-9]+(\\.[0-9]+)?$"
+  REGEX "^PROJECT="
 )
 
 if(NOT SVXLINK_VERSION_LINE)
   message(FATAL_ERROR
-    "Could not find a valid PROJECT= version in "
+    "Could not find PROJECT= in "
     "${CMAKE_CURRENT_LIST_DIR}/versions"
   )
 endif()
@@ -41,12 +47,67 @@ string(
   REGEX REPLACE
   "^PROJECT="
   ""
-  SVXLINK_RELEASE_VERSION
+  SVXLINK_SOURCE_VERSION
   "${SVXLINK_VERSION_LINE}"
 )
 
+if(SVXLINK_PACKAGE_VERSION)
+  set(SVXLINK_RELEASE_VERSION "${SVXLINK_PACKAGE_VERSION}")
+
+elseif(SVXLINK_SOURCE_VERSION MATCHES "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$")
+  set(SVXLINK_RELEASE_VERSION "${SVXLINK_SOURCE_VERSION}")
+
+else()
+  # Find official numeric release tags reachable from HEAD.
+  execute_process(
+    COMMAND git tag --merged HEAD --list
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/.."
+    OUTPUT_VARIABLE SVXLINK_GIT_TAGS
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE SVXLINK_GIT_RESULT
+  )
+
+  if(NOT SVXLINK_GIT_RESULT EQUAL 0)
+    message(FATAL_ERROR
+      "Cannot determine the SvxLink release version from Git"
+    )
+  endif()
+
+  string(REPLACE "\n" ";" SVXLINK_TAG_LIST "${SVXLINK_GIT_TAGS}")
+
+  set(SVXLINK_OFFICIAL_TAGS "")
+
+  foreach(tag IN LISTS SVXLINK_TAG_LIST)
+    if(tag MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+      list(APPEND SVXLINK_OFFICIAL_TAGS "${tag}")
+    endif()
+  endforeach()
+
+  if(NOT SVXLINK_OFFICIAL_TAGS)
+    message(FATAL_ERROR
+      "No official numeric SvxLink release tag found. "
+      "Specify -DSVXLINK_PACKAGE_VERSION=<version>"
+    )
+  endif()
+
+# Select the highest numeric release using version comparison.
+set(SVXLINK_RELEASE_VERSION "0.0.0")
+
+foreach(tag IN LISTS SVXLINK_OFFICIAL_TAGS)
+  if(tag VERSION_GREATER SVXLINK_RELEASE_VERSION)
+    set(SVXLINK_RELEASE_VERSION "${tag}")
+  endif()
+endforeach()
+endif()
+
+if(NOT SVXLINK_RELEASE_VERSION MATCHES "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$")
+  message(FATAL_ERROR
+    "Invalid SvxLink package version: ${SVXLINK_RELEASE_VERSION}"
+  )
+endif()
+
 message(STATUS
-  "SvxLink release version from versions file: ${SVXLINK_RELEASE_VERSION}"
+  "SvxLink release version: ${SVXLINK_RELEASE_VERSION}"
 )
 
 project(
