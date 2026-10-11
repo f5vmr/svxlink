@@ -929,6 +929,16 @@ void ModuleMetarInfo::onData(std::string metarinput, size_t count)
     // e.g.: 2016-08-10T08:20:00Z
     std::string met_utc = getXmlParam("observation_time", html);
 
+    // Aviation Weather API v2 includes fractional seconds, for example:
+    // 2026-10-11T14:50:00.000Z. Normalise this to the original format
+    // expected by isvalidUTC().
+    if (met_utc.length() > 20 &&
+        met_utc[19] == '.' &&
+        met_utc.back() == 'Z')
+    {
+      met_utc.erase(19, met_utc.length() - 20);
+    }
+
     // look for raw metar data
     metar = getXmlParam("raw_text", html);
 
